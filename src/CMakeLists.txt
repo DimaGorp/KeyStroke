@@ -1,0 +1,18 @@
+#Core
+set(CORE_INCLUDE_DIRS "${SOURCE_FOLDER}/KDModule/public/Core" CACHE STRING "CORE INCLUDE DIRECTORIES")
+set(CORE_SOURCE_DIRS "${SOURCE_FOLDER}/KDModule/private/Core" CACHE STRING "CORE SOURCE DIRECTORIES")
+
+set(SRC_INCLUDE_DIRS "${SOURCE_FOLDER}/KDModule/public/" CACHE STRING "SOURCE INCLUDE DIRECTORIES")
+set(SRC_SOURCE_DIRS "${SOURCE_FOLDER}/KDModule/private/" CACHE STRING "SOURCE DIRECTORIES")
+
+# ImGui
+#[===[
+
+
+#Setup App as Library
+#add_library(APP INTERFACE "${SRC_INCLUDE_DIRS}/Application/Application.hpp")
+
+#target_include_directories(APP INTERFACE
+#    "${SRC_INCLUDE_DIRS}"
+#)
+]===]
