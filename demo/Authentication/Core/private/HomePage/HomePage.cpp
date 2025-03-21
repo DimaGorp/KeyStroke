@@ -1,5 +1,6 @@
 #include "HomePage/HomePage.hpp"
-
+#include "LogInPage/LoginPage.hpp"
+#include "SignUpPage/SignupPage.hpp"
 HomePage::HomePage( wxWindow* parent, wxWindowID id, const wxString& title, const wxPoint& pos, const wxSize& size, long style ) : wxFrame( parent, id, title, pos, size, style )
 {
 	this->SetSizeHints(wxSize(1200, 800), wxSize(1200, 800));
@@ -63,6 +64,9 @@ HomePage::HomePage( wxWindow* parent, wxWindowID id, const wxString& title, cons
     LogIN_BTN->Bind(wxEVT_LEAVE_WINDOW, &HomePage::OnLoginLeave, this);
     SignUpBtn->Bind(wxEVT_ENTER_WINDOW, &HomePage::OnSignUpEnter, this);
     SignUpBtn->Bind(wxEVT_LEAVE_WINDOW, &HomePage::OnSignUpLeave, this);
+	// Bind click events
+    LogIN_BTN->Bind(wxEVT_BUTTON, &HomePage::OnLoginClick, this);
+    SignUpBtn->Bind(wxEVT_BUTTON, &HomePage::OnSignUpClick, this);
 }
 
 HomePage::~HomePage()
@@ -89,4 +93,19 @@ void HomePage::OnSignUpLeave(wxMouseEvent& event) {
 	SignUpBtn->SetBackgroundColour(wxSystemSettings::GetColour(wxSYS_COLOUR_BACKGROUND)); // Original color
 	SignUpBtn->SetForegroundColour(wxSystemSettings::GetColour(wxSYS_COLOUR_HIGHLIGHT));
 	SignUpBtn->Refresh();
+}
+
+
+void HomePage::OnLoginClick(wxCommandEvent& event)
+{
+	Login* loginWindow = new Login(nullptr, wxID_ANY, _("Login Window"), wxDefaultPosition, wxDefaultSize, wxDEFAULT_FRAME_STYLE);
+	loginWindow->Show(true);
+	this->Close(true);
+}
+
+void HomePage::OnSignUpClick(wxCommandEvent& event)
+{
+	SignUp* signupWindow = new SignUp(nullptr, wxID_ANY, _("Login Window"), wxDefaultPosition, wxDefaultSize, wxDEFAULT_FRAME_STYLE);
+	signupWindow->Show(true);
+	this->Close(true);
 }

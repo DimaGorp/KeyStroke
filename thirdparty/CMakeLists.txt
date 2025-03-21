@@ -20,7 +20,7 @@ FetchContent_Declare(
 
 FetchContent_MakeAvailable(wxWidgets)
 
-list(APPEND wxWidgets_libs wxcore wxbase)
+list(APPEND wxWidgets_libs wxcore wxbase wxrichtext)
 list(APPEND wxWidgets_include_dirs 
     "${wxWidgets_SOURCE_DIR}/include"
     "${wxWidgets_BINARY_DIR}/lib/vc_x64_lib/mswud"

@@ -33,6 +33,8 @@ class HomePage : public wxFrame
 		void OnLoginLeave(wxMouseEvent& event);
 		void OnSignUpEnter(wxMouseEvent& event);
 		void OnSignUpLeave(wxMouseEvent& event);
+		void OnLoginClick(wxCommandEvent& event);
+		void OnSignUpClick(wxCommandEvent& event);
 		~HomePage();
 
 };
