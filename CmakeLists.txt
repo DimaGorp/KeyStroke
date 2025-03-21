@@ -3,7 +3,7 @@ cmake_minimum_required(VERSION 3.28)
 project(KSD)
 
 #Setting up Config Variables for cmake
-set(DEPENDENCIES_BUILD_FOLDER "${PROJECT_SOURCE_DIR}/thirdparty/libs/" CACHE STRING "Build folder for dependecies")
+set(DEPENDENCIES_BUILD_FOLDER "${PROJECT_SOURCE_DIR}/thirdparty/" CACHE STRING "Build folder for dependecies")
 set(SOURCE_FOLDER "${PROJECT_SOURCE_DIR}/src/" CACHE STRING "source folder for library")
 set(DEMOS_FOLDER "${PROJECT_SOURCE_DIR}/demo/" CACHE STRING "demos folder for Demonstration usages")
 

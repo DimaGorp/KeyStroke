@@ -1,32 +1,30 @@
 cmake_minimum_required(VERSION 3.28)
-set(FETCHCONTENT_BASE_DIR "${DEPENDENCIES_BUILD_FOLDER}" CACHE STRING "FETCH CONTENT Dependency folder ")
+set(FETCHCONTENT_BASE_DIR "${DEPENDENCIES_BUILD_FOLDER}/libs/" CACHE STRING "FETCH CONTENT Dependency folder ")
+# Enable verbose fetch output from the start
+set(FETCHCONTENT_QUIET OFF)  # Verbose output for debugging
 
 include(FetchContent)
-FetchContent_Declare(SFML
-    GIT_REPOSITORY https://github.com/SFML/SFML.git
-    GIT_TAG 3.0.0
-    GIT_SHALLOW ON
-    EXCLUDE_FROM_ALL
-    SYSTEM)
-FetchContent_MakeAvailable(SFML)
 
-FetchContent_Declare(ImGui
-    GIT_REPOSITORY https://github.com/ocornut/imgui
-    GIT_TAG v1.91.1
-    GIT_SHALLOW ON
-    EXCLUDE_FROM_ALL
-    SYSTEM)
-FetchContent_MakeAvailable(ImGui)
-FetchContent_GetProperties(ImGui SOURCE_DIR IMGUI_DIR)
+message(STATUS "Fetching wxWidgets...")
 
-set(IMGUI_SFML_FIND_SFML OFF)
-FetchContent_Declare(ImGui-SFML
-    GIT_REPOSITORY https://github.com/SFML/imgui-sfml
-    GIT_TAG v3.0
-    GIT_SHALLOW ON
-    EXCLUDE_FROM_ALL
-    SYSTEM)
-FetchContent_MakeAvailable(ImGui-SFML)
+set(wxBUILD_SHARED OFF CACHE BOOL "Build wx libraries as shared libs")
+set(wxBUILD_PRECOMP OFF CACHE BOOL "Use precompiled headers")
+set(wxBUILD_MONOLITHIC OFF CACHE BOOL "Build a single library")
 
-list(APPEND SFML SFML::Graphics)
-list(APPEND imGuiSFML ImGui-SFML::ImGui-SFML)
+FetchContent_Declare(
+    wxWidgets 
+    GIT_REPOSITORY https://github.com/wxWidgets/wxWidgets.git
+    GIT_TAG        v3.1.4
+    GIT_SHALLOW    TRUE
+)
+
+FetchContent_MakeAvailable(wxWidgets)
+
+list(APPEND wxWidgets_libs wxcore wxbase)
+list(APPEND wxWidgets_include_dirs 
+    "${wxWidgets_SOURCE_DIR}/include"
+    "${wxWidgets_BINARY_DIR}/lib/vc_x64_lib/mswud"
+)
+
+set(wxWidgets_libs ${wxWidgets_libs} PARENT_SCOPE)
+set(wxWidgets_include_dirs ${wxWidgets_include_dirs} PARENT_SCOPE)
