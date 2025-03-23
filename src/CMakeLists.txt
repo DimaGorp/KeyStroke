@@ -10,7 +10,7 @@ set(SRC_SOURCE_DIRS "${SOURCE_FOLDER}/KDModule/private/" CACHE STRING "SOURCE DI
 
 
 #Setup App as Library
-#add_library(APP INTERFACE "${SRC_INCLUDE_DIRS}/Application/Application.hpp")
+add_library(APP INTERFACE "${SRC_INCLUDE_DIRS}/Application/Application.hpp")
 
 #target_include_directories(APP INTERFACE
 #    "${SRC_INCLUDE_DIRS}"
