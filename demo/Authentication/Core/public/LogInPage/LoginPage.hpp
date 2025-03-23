@@ -12,29 +12,53 @@
 #include <wx/font.h>
 #include <wx/colour.h>
 #include <wx/settings.h>
+#include <wx/msgdlg.h>
 #include <wx/stattext.h>
+#include <wx/filedlg.h>
 #include <wx/button.h>
 #include <wx/bitmap.h>
+#include <wx/log.h>
 #include <wx/image.h>
 #include <wx/icon.h>
 #include <wx/sizer.h>
+#include <vector>
+#include <chrono>
+#include <filesystem>
+#include "GMM/GMM.hpp"
+
 class Login : public wxFrame
 {
-	private:
+public:
+    Login(wxWindow* parent, wxWindowID id, const wxString& title, 
+          const wxPoint& pos = wxDefaultPosition, const wxSize& size = wxDefaultSize, 
+          long style = wxDEFAULT_FRAME_STYLE);
+    ~Login();
 
-	protected:
-		wxButton* Back;
-		wxStaticText* HelpingText;
-		wxStaticText* Text;
-		wxRichTextCtrl* EnterArea;
-		wxButton* LogIN_BTN;
+private:
+    wxButton* Back;
+    wxStaticText* HelpingText;
+    wxStaticText* Text;             // Text to type
+    wxTextCtrl* EnterArea;          // Free-text input
+    GMM storedGmm;                  // Loaded GMM for comparison
+    wxString gmmFilename;           // Store selected GMM filename
 
-	public:
+    struct KeyEvent {
+        char key;
+        std::chrono::steady_clock::time_point press_time;
+        std::chrono::steady_clock::time_point release_time;
+    };
+    std::vector<KeyEvent> key_events;
+    std::vector<wxString> textSamples; // List of texts to cycle through
+    size_t currentTextIndex;           // Index of current text
+    static const size_t MIN_SAMPLES = 20; // Minimum keystrokes for GMM
 
-		Login( wxWindow* parent, wxWindowID id = wxID_ANY, const wxString& title = wxEmptyString, const wxPoint& pos = wxDefaultPosition, const wxSize& size = wxSize( 726,534 ), long style = wxDEFAULT_FRAME_STYLE|wxTAB_TRAVERSAL );
+    void OnBackEnter(wxMouseEvent& event);
+    void OnBackLeave(wxMouseEvent& event);
+    void OnBackClicked(wxCommandEvent& event);
+    void OnKeyDown(wxKeyEvent& event);
+    void OnKeyUp(wxKeyEvent& event);
+    void OnEnterPressed(wxCommandEvent& event); // Check text and authenticate
+    void UpdateText();                          // Switch to next text
 
-		~Login();
-		void OnBackEnter(wxMouseEvent& event);
-		void OnBackLeave(wxMouseEvent& event);
-		void OnBackClicked(wxCommandEvent& event);
+    DECLARE_EVENT_TABLE()
 };

@@ -16,28 +16,45 @@
 #include <wx/stattext.h>
 #include <wx/button.h>
 #include <wx/bitmap.h>
+#include <wx/log.h>
 #include <wx/image.h>
 #include <wx/icon.h>
 #include <wx/msgdlg.h>
 #include <wx/sizer.h>
+#include <vector>
+#include <cmath>
+#include <chrono>
+// In SignupPage.hpp and LoginPage.hpp
+#include "Core/GMM/GMM.hpp" // Instead of just "GMM.hpp"
 class SignUp : public wxFrame
 {
-	private:
+public:
+    SignUp(wxWindow* parent, wxWindowID id, const wxString& title, const wxPoint& pos = wxDefaultPosition, const wxSize& size = wxDefaultSize, long style = wxDEFAULT_FRAME_STYLE);
+    ~SignUp();
 
-	protected:
-		wxStaticText* NameLabel;
-		wxTextCtrl* m_textCtrl2;
-		wxStaticText* HelpingText;
-		wxStaticText* Text;
-		wxRichTextCtrl* EnterArea;
-		wxButton* LogIN_BTN;
+private:
+    wxStaticText* NameLabel;
+    wxTextCtrl* m_textCtrl2;        // Name input
+    wxStaticText* HelpingText;
+    wxStaticText* Text;             // Text to type
+    wxTextCtrl* EnterArea;          // Free-text input (changed from wxRichTextCtrl)
 
-	public:
+    struct KeyEvent {
+        char key;
+        std::chrono::steady_clock::time_point press_time;
+        std::chrono::steady_clock::time_point release_time;
+    };
+    std::vector<KeyEvent> key_events;
+    std::vector<wxString> textSamples; // List of texts to cycle through
+    size_t currentTextIndex;           // Index of current text
+    static const size_t MIN_SAMPLES = 20; // Minimum keystrokes for GMM
 
-		SignUp( wxWindow* parent, wxWindowID id = wxID_ANY, const wxString& title = wxEmptyString, const wxPoint& pos = wxDefaultPosition, const wxSize& size = wxSize( 886,638 ), long style = wxDEFAULT_FRAME_STYLE|wxTAB_TRAVERSAL );
+    void OnTextCtrlFocus(wxFocusEvent& event);
+    void OnTextCtrlEnter(wxCommandEvent& event);
+    void OnKeyDown(wxKeyEvent& event);
+    void OnKeyUp(wxKeyEvent& event);
+    void OnEnterPressed(wxCommandEvent& event); // Check text and handle signup
+    void UpdateText();                          // Switch to next text
 
-		~SignUp();
-		void OnTextCtrlFocus(wxFocusEvent& event);
-		void OnTextCtrlEnter(wxCommandEvent& event);
-
+    DECLARE_EVENT_TABLE()
 };
