@@ -4,6 +4,7 @@
 HomePage::HomePage( wxWindow* parent, wxWindowID id, const wxString& title, const wxPoint& pos, const wxSize& size, long style ) : wxFrame( parent, id, title, pos, size, style )
 {
 	this->SetSizeHints(wxSize(1200, 800), wxSize(1200, 800));
+	this->SetPosition(wxPoint(1200-600,800-400));
 	this->SetBackgroundColour( wxColour( 255, 240, 255 ) );
 
 	wxBoxSizer* Area;
@@ -98,14 +99,14 @@ void HomePage::OnSignUpLeave(wxMouseEvent& event) {
 
 void HomePage::OnLoginClick(wxCommandEvent& event)
 {
-	Login* loginWindow = new Login(nullptr, wxID_ANY, _("Login Window"), wxDefaultPosition, wxDefaultSize, wxDEFAULT_FRAME_STYLE);
+	Login* loginWindow = new Login(nullptr, wxID_ANY, _("Login"), wxDefaultPosition, wxDefaultSize, wxDEFAULT_FRAME_STYLE);
 	loginWindow->Show(true);
 	this->Close(true);
 }
 
 void HomePage::OnSignUpClick(wxCommandEvent& event)
 {
-	SignUp* signupWindow = new SignUp(nullptr, wxID_ANY, _("Login Window"), wxDefaultPosition, wxDefaultSize, wxDEFAULT_FRAME_STYLE);
+	SignUp* signupWindow = new SignUp(nullptr, wxID_ANY, _("Signup"), wxDefaultPosition, wxDefaultSize, wxDEFAULT_FRAME_STYLE);
 	signupWindow->Show(true);
 	this->Close(true);
 }

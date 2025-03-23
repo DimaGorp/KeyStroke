@@ -2,6 +2,7 @@
 SignUp::SignUp( wxWindow* parent, wxWindowID id, const wxString& title, const wxPoint& pos, const wxSize& size, long style ) : wxFrame( parent, id, title, pos, size, style )
 {
 	this->SetSizeHints(wxSize(1200, 800), wxSize(1200, 800));
+	this->SetPosition(wxPoint(1200-600,800-400));
 	this->SetBackgroundColour( wxColour( 255, 240, 255 ) );
 
 	wxBoxSizer* Area;
@@ -19,7 +20,7 @@ SignUp::SignUp( wxWindow* parent, wxWindowID id, const wxString& title, const wx
 
 	Name->Add( NameLabel, 0, wxALL|wxEXPAND, 5 );
 
-	m_textCtrl2 = new wxTextCtrl( this, wxID_ANY, wxEmptyString, wxDefaultPosition, wxDefaultSize, 0 );
+	m_textCtrl2 = new wxTextCtrl(this, wxID_ANY, wxEmptyString, wxDefaultPosition, wxDefaultSize, wxTE_PROCESS_ENTER);
 	Name->Add( m_textCtrl2, 1, wxALL|wxEXPAND, 5 );
 
 
@@ -61,8 +62,35 @@ SignUp::SignUp( wxWindow* parent, wxWindowID id, const wxString& title, const wx
 	this->Layout();
 
 	this->Centre( wxBOTH );
+	m_textCtrl2->Bind(wxEVT_SET_FOCUS, &SignUp::OnTextCtrlFocus, this);
+	m_textCtrl2->Bind(wxEVT_TEXT_ENTER, &SignUp::OnTextCtrlEnter, this);
 }
 
 SignUp::~SignUp()
 {
+}
+
+void SignUp::OnTextCtrlFocus(wxFocusEvent& event)
+{
+	// Disable other interactive controls when m_textCtrl2 gains focus
+	LogIN_BTN->Enable(false);
+	EnterArea->Enable(false);
+	event.Skip(); // Allow default focus behavior
+}
+
+void SignUp::OnTextCtrlEnter(wxCommandEvent& event)
+{
+	// Check if the text is non-empty, then re-enable controls
+	if (!m_textCtrl2->GetValue().IsEmpty())
+	{
+		LogIN_BTN->Enable(true);
+		EnterArea->Enable(true);
+		// Optionally, move focus away from m_textCtrl2
+		LogIN_BTN->SetFocus();
+	}
+	else
+	{
+		// Keep controls disabled if no name is entered
+		wxMessageBox(_("Please enter a name before proceeding."), _("Input Required"), wxOK | wxICON_WARNING, this);
+	}
 }

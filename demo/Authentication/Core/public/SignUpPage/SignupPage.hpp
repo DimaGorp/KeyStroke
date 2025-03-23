@@ -18,6 +18,7 @@
 #include <wx/bitmap.h>
 #include <wx/image.h>
 #include <wx/icon.h>
+#include <wx/msgdlg.h>
 #include <wx/sizer.h>
 class SignUp : public wxFrame
 {
@@ -36,5 +37,7 @@ class SignUp : public wxFrame
 		SignUp( wxWindow* parent, wxWindowID id = wxID_ANY, const wxString& title = wxEmptyString, const wxPoint& pos = wxDefaultPosition, const wxSize& size = wxSize( 886,638 ), long style = wxDEFAULT_FRAME_STYLE|wxTAB_TRAVERSAL );
 
 		~SignUp();
+		void OnTextCtrlFocus(wxFocusEvent& event);
+		void OnTextCtrlEnter(wxCommandEvent& event);
 
 };

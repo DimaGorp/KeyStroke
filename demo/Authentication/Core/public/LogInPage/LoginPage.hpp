@@ -23,6 +23,7 @@ class Login : public wxFrame
 	private:
 
 	protected:
+		wxButton* Back;
 		wxStaticText* HelpingText;
 		wxStaticText* Text;
 		wxRichTextCtrl* EnterArea;
@@ -33,5 +34,7 @@ class Login : public wxFrame
 		Login( wxWindow* parent, wxWindowID id = wxID_ANY, const wxString& title = wxEmptyString, const wxPoint& pos = wxDefaultPosition, const wxSize& size = wxSize( 726,534 ), long style = wxDEFAULT_FRAME_STYLE|wxTAB_TRAVERSAL );
 
 		~Login();
-
+		void OnBackEnter(wxMouseEvent& event);
+		void OnBackLeave(wxMouseEvent& event);
+		void OnBackClicked(wxCommandEvent& event);
 };
