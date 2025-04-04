@@ -2,7 +2,6 @@
 project(${PROJECT_NAME})
 set(UICORE_INCLUDE_DIRS "${PROJECT_SOURCE_DIR}/Core/public" CACHE STRING "UI CORE INCLUDE DIRECTORIES" FORCE)
 set(UICORE_SOURCE_DIRS "${PROJECT_SOURCE_DIR}/Core/private" CACHE STRING "UI CORE SOURCE DIRECTORIES" FORCE)
-message("${UICORE_SOURCE_DIRS}")
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
@@ -23,5 +22,5 @@ target_include_directories(UICore PRIVATE
             "${UICORE_INCLUDE_DIRS}/SignupPage/"
             "${UICORE_INCLUDE_DIRS}"
 )
-target_link_libraries(UICore PRIVATE ${wxWidgets_libs} GMM)
-target_include_directories(UICore PRIVATE ${wxWidgets_include_dirs} )
+target_link_libraries(UICore PRIVATE ${wxWidgets_libs} GMM wxMathPlot)
+target_include_directories(UICore PRIVATE ${wxWidgets_include_dirs} ${wxmathplot_SOURCE_DIR})

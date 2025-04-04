@@ -4,6 +4,7 @@
 /// Class SignUp
 ///////////////////////////////////////////////////////////////////////////////
 #include <wx/artprov.h>
+#include <wx/wx.h>  // Ensure base setup
 #include <wx/xrc/xmlres.h>
 #include <wx/intl.h>
 #include <wx/string.h>
@@ -21,40 +22,47 @@
 #include <wx/icon.h>
 #include <wx/msgdlg.h>
 #include <wx/sizer.h>
+#include <fstream> // Required for CSV file I/O
 #include <vector>
 #include <cmath>
 #include <chrono>
 // In SignupPage.hpp and LoginPage.hpp
 #include "Core/GMM/GMM.hpp" // Instead of just "GMM.hpp"
-class SignUp : public wxFrame
-{
+struct KeyEvent {
+    int key;
+    std::chrono::steady_clock::time_point press_time;
+    std::chrono::steady_clock::time_point release_time = std::chrono::steady_clock::time_point();
+};
+
+class SignUp : public wxFrame {
 public:
-    SignUp(wxWindow* parent, wxWindowID id, const wxString& title, const wxPoint& pos = wxDefaultPosition, const wxSize& size = wxDefaultSize, long style = wxDEFAULT_FRAME_STYLE);
+    SignUp(wxWindow* parent, wxWindowID id, const wxString& title, const wxPoint& pos = wxDefaultPosition, 
+           const wxSize& size = wxDefaultSize, long style = wxDEFAULT_FRAME_STYLE);
     ~SignUp();
 
 private:
-    wxStaticText* NameLabel;
-    wxTextCtrl* m_textCtrl2;        // Name input
-    wxStaticText* HelpingText;
-    wxStaticText* Text;             // Text to type
-    wxTextCtrl* EnterArea;          // Free-text input (changed from wxRichTextCtrl)
+    static const size_t MIN_SAMPLES = 50;
 
-    struct KeyEvent {
-        char key;
-        std::chrono::steady_clock::time_point press_time;
-        std::chrono::steady_clock::time_point release_time;
-    };
+    wxStaticText* NameLabel;
+    wxTextCtrl* m_textCtrl2;
+    wxStaticText* HelpingText;
+    wxStaticText* Text;
+    wxTextCtrl* EnterArea;
+    std::vector<wxString> textSamples;
+    size_t currentTextIndex;
+
+    std::vector<KeyEvent> all_key_events;
     std::vector<KeyEvent> key_events;
-    std::vector<wxString> textSamples; // List of texts to cycle through
-    size_t currentTextIndex;           // Index of current text
-    static const size_t MIN_SAMPLES = 20; // Minimum keystrokes for GMM
+    std::vector<Vec2> features;
 
     void OnTextCtrlFocus(wxFocusEvent& event);
     void OnTextCtrlEnter(wxCommandEvent& event);
     void OnKeyDown(wxKeyEvent& event);
     void OnKeyUp(wxKeyEvent& event);
-    void OnEnterPressed(wxCommandEvent& event); // Check text and handle signup
-    void UpdateText();                          // Switch to next text
+    void OnEnterPressed(wxCommandEvent& event);
+    void UpdateText();
+    void SaveFeaturesToCSV(const std::string& filename, const std::vector<KeyEvent>& events, 
+                          const std::vector<Vec2>& feats, bool firstWrite); // Добавлен параметр bool firstWrite
 
     DECLARE_EVENT_TABLE()
 };

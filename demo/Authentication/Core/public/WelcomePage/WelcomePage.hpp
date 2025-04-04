@@ -17,17 +17,28 @@
 #include <wx/image.h>
 #include <wx/icon.h>
 #include <wx/sizer.h>
-class WelcomePage : public wxFrame
-{
-	private:
 
-	protected:
-		wxStaticText* HelpingText;
+#include <wx/wx.h>
+#include <vector>
+#include "GMM/GMM.hpp" // For Vec2 definition (assuming Vec2 is in GMM.hpp)
+#include "mathplot.h" // wxMathPlot header
 
+class WelcomePage : public wxFrame {
 	public:
-
-		WelcomePage( wxWindow* parent, wxWindowID id = wxID_ANY, const wxString& title = wxEmptyString, const wxPoint& pos = wxDefaultPosition, const wxSize& size = wxSize( 944,644 ), long style = wxDEFAULT_FRAME_STYLE|wxTAB_TRAVERSAL );
-
+		WelcomePage(wxWindow* parent, wxWindowID id, const wxString& title, 
+					const std::vector<Vec2>& keystrokes = std::vector<Vec2>(), 
+					double likelihood = 0.0, 
+					const wxPoint& pos = wxDefaultPosition, 
+					const wxSize& size = wxDefaultSize, 
+					long style = wxDEFAULT_FRAME_STYLE);
 		~WelcomePage();
-
+	
+	private:
+		wxStaticText* HelpingText;
+		wxStaticText* KeystrokeInfo;
+		mpWindow* chartWindow;
+		std::vector<Vec2> keystrokes;
+		double loginLikelihood;
+	
+		void CreateChart();
 };

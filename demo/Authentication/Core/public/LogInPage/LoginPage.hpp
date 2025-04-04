@@ -24,10 +24,10 @@
 #include <vector>
 #include <chrono>
 #include <filesystem>
+#include <wx/wx.h>
 #include "GMM/GMM.hpp"
 
-class Login : public wxFrame
-{
+class Login : public wxFrame {
 public:
     Login(wxWindow* parent, wxWindowID id, const wxString& title, 
           const wxPoint& pos = wxDefaultPosition, const wxSize& size = wxDefaultSize, 
@@ -35,30 +35,33 @@ public:
     ~Login();
 
 private:
+    struct KeyEvent {
+        int key;
+        std::chrono::steady_clock::time_point press_time;
+        std::chrono::steady_clock::time_point release_time = std::chrono::steady_clock::time_point();
+    };
+
     wxButton* Back;
     wxStaticText* HelpingText;
-    wxStaticText* Text;             // Text to type
-    wxTextCtrl* EnterArea;          // Free-text input
-    GMM storedGmm;                  // Loaded GMM for comparison
-    wxString gmmFilename;           // Store selected GMM filename
-
-    struct KeyEvent {
-        char key;
-        std::chrono::steady_clock::time_point press_time;
-        std::chrono::steady_clock::time_point release_time;
-    };
+    wxStaticText* Text;
+    wxTextCtrl* EnterArea;
+    wxTextCtrl* usernameInput; // New username input
+    std::vector<wxString> textSamples;
+    size_t currentTextIndex;
     std::vector<KeyEvent> key_events;
-    std::vector<wxString> textSamples; // List of texts to cycle through
-    size_t currentTextIndex;           // Index of current text
-    static const size_t MIN_SAMPLES = 20; // Minimum keystrokes for GMM
+    std::vector<Vec2> features; // Assuming Vec2 is {x: dwell, y: flight}
+    wxString gmmFilename;
+    GMM storedGmm;
 
     void OnBackEnter(wxMouseEvent& event);
     void OnBackLeave(wxMouseEvent& event);
     void OnBackClicked(wxCommandEvent& event);
+    void OnUsernameEnter(wxCommandEvent& event);
+    void LoadGMMFromUsername();
     void OnKeyDown(wxKeyEvent& event);
     void OnKeyUp(wxKeyEvent& event);
-    void OnEnterPressed(wxCommandEvent& event); // Check text and authenticate
-    void UpdateText();                          // Switch to next text
+    void OnEnterPressed(wxCommandEvent& event);
+    void UpdateText();
 
     DECLARE_EVENT_TABLE()
 };
