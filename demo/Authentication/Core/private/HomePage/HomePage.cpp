@@ -1,6 +1,7 @@
 #include "HomePage/HomePage.hpp"
 #include "LogInPage/LoginPage.hpp"
 #include "SignUpPage/SignupPage.hpp"
+#include "Config.h"
 HomePage::HomePage( wxWindow* parent, wxWindowID id, const wxString& title, const wxPoint& pos, const wxSize& size, long style ) : wxFrame( parent, id, title, pos, size, style )
 {
 	this->SetSizeHints(wxSize(1200, 800), wxSize(1200, 800));
@@ -59,7 +60,7 @@ HomePage::HomePage( wxWindow* parent, wxWindowID id, const wxString& title, cons
 
 	this->SetSizer( Area );
 	this->Layout();
-
+	GenerateCSVWithRandomNames(KEYSTROKES_PATH, "users.csv");
 	this->Centre( wxBOTH );
 	LogIN_BTN->Bind(wxEVT_ENTER_WINDOW, &HomePage::OnLoginEnter, this);
     LogIN_BTN->Bind(wxEVT_LEAVE_WINDOW, &HomePage::OnLoginLeave, this);
@@ -69,6 +70,79 @@ HomePage::HomePage( wxWindow* parent, wxWindowID id, const wxString& title, cons
     LogIN_BTN->Bind(wxEVT_BUTTON, &HomePage::OnLoginClick, this);
     SignUpBtn->Bind(wxEVT_BUTTON, &HomePage::OnSignUpClick, this);
 }
+
+
+// Function to generate a random alphanumeric string of a given length
+std::string HomePage::generateRandomName(int length) {
+    const std::string characters = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
+    std::random_device rd;
+    std::mt19937 generator(rd());
+    std::uniform_int_distribution<> distrib(0, characters.size() - 1);
+
+    std::stringstream nameStream;
+    for (int i = 0; i < length; ++i) {
+        nameStream << characters[distrib(generator)];
+    }
+
+    return nameStream.str();
+}
+void HomePage::GenerateCSVWithRandomNames(const std::string& directoryPath, const std::string& outputCSV) {
+    namespace fs = std::filesystem;
+
+    try {
+        fs::path inputPath = fs::u8path(directoryPath);
+        fs::path outputPath = fs::u8path(outputCSV);
+
+        if (!fs::exists(inputPath) || !fs::is_directory(inputPath)) {
+            wxString wxDirPath = wxString::FromUTF8(directoryPath);
+            wxLogMessage("Debug path: %s", wxDirPath);
+
+            wxTextEntryDialog dlg(nullptr, "Dataset directory does not exist.\nYou can copy the full path here:", 
+                                  "Directory Error", wxDirPath);
+            dlg.ShowModal();
+
+            wxLogError("Dataset directory does not exist:\n%s", wxDirPath);
+            return;
+        }
+
+        std::ofstream outFile(outputPath);
+        if (!outFile.is_open()) {
+            wxLogError("Could not open output CSV file: %s", wxString::FromUTF8(outputCSV));
+            return;
+        }
+
+        outFile << "PARTICIPANT_ID,NAME\n";
+
+        for (const auto& entry : fs::directory_iterator(inputPath)) {
+            if (entry.is_regular_file() && entry.path().extension() == ".txt") {
+                // Extract participant ID from filename (before the underscore)
+                std::string filename = entry.path().filename().string();
+                std::string participantID = filename.substr(0, filename.find('_'));
+
+                // Generate a random name different from the participant ID
+                std::string name;
+                do {
+                    name = generateRandomName(8);  // Random name of length 8
+                } while (name == participantID);  // Ensure the name is not the same as the participant ID
+
+                // Write the participant ID and name to the CSV
+                outFile << participantID << "," << name << "\n";
+            }
+        }
+
+        wxLogMessage("CSV successfully saved to: %s", wxString::FromUTF8(outputCSV));
+    } catch (const std::exception& e) {
+        wxLogError("Exception occurred during CSV generation:\n%s", wxString(e.what()));
+    }
+}
+
+
+
+
+
+
+
+
 
 HomePage::~HomePage()
 {

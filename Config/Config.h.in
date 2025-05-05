@@ -1,0 +1,4 @@
+// Config.h.in
+#pragma once
+
+#define KEYSTROKES_PATH "@KEYSTROKES_PATH@"

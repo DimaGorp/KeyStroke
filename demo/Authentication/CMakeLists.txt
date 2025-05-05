@@ -22,5 +22,6 @@ target_include_directories(UICore PRIVATE
             "${UICORE_INCLUDE_DIRS}/SignupPage/"
             "${UICORE_INCLUDE_DIRS}"
 )
-target_link_libraries(UICore PRIVATE ${wxWidgets_libs} GMM wxMathPlot)
-target_include_directories(UICore PRIVATE ${wxWidgets_include_dirs} ${wxmathplot_SOURCE_DIR})
+message("${EVENT_INCLUDE_DIRS}")
+target_link_libraries(UICore PRIVATE ${wxWidgets_libs} GMM EventSystem wxMathPlot)
+target_include_directories(UICore PRIVATE ${wxWidgets_include_dirs} ${wxmathplot_SOURCE_DIR} "${CMAKE_BINARY_DIR}/Config/")

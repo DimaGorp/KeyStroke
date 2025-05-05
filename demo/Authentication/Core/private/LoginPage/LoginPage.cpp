@@ -1,23 +1,23 @@
-#include <wx/wx.h>
+
+#include <wx/filefn.h>
 #include <wx/log.h>
+#include <fstream>
+#include <sstream>
+#include <cctype>
 #include "LoginPage/LoginPage.hpp"
 #include "WelcomePage/WelcomePage.hpp"
 #include "HomePage/HomePage.hpp"
-#include <wx/filefn.h>
 
-// Define MIN_SAMPLES (match this to SignUp)
-const size_t MIN_SAMPLES = 10; // Example; adjust if different in SignUp
-
-BEGIN_EVENT_TABLE(Login, wxFrame)
+wxBEGIN_EVENT_TABLE(Login, wxFrame)
     EVT_BUTTON(wxID_ANY, Login::OnBackClicked)
     EVT_KEY_DOWN(Login::OnKeyDown)
     EVT_KEY_UP(Login::OnKeyUp)
     EVT_TEXT_ENTER(wxID_ANY, Login::OnEnterPressed)
-END_EVENT_TABLE()
+wxEND_EVENT_TABLE()
 
 Login::Login(wxWindow* parent, wxWindowID id, const wxString& title, 
              const wxPoint& pos, const wxSize& size, long style)
-    : wxFrame(parent, id, title, pos, size, style), currentTextIndex(0), storedGmm(2) {
+    : wxFrame(parent, id, title, pos, size, style), currentTextIndex(0), testSectionId(0), storedGmm(2) {
     wxLog::SetActiveTarget(new wxLogStderr());
     wxLogMessage("Login window initialized");
 
@@ -86,9 +86,108 @@ Login::Login(wxWindow* parent, wxWindowID id, const wxString& title,
     EnterArea->Bind(wxEVT_KEY_UP, &Login::OnKeyUp, this);
     EnterArea->Bind(wxEVT_TEXT_ENTER, &Login::OnEnterPressed, this);
     usernameInput->Bind(wxEVT_TEXT_ENTER, &Login::OnUsernameEnter, this);
+
+    // Load users.csv
+    if (!LoadUserMap("users.csv")) {
+        wxLogError("Failed to load users.csv");
+        wxMessageBox(_("Failed to load user database."), _("Error"), wxOK | wxICON_ERROR, this);
+    }
 }
 
 Login::~Login() {}
+
+bool Login::LoadUserMap(const std::string& filename) {
+    std::ifstream file(filename);
+    if (!file.is_open()) {
+        wxLogError("Cannot open %s", filename.c_str());
+        return false;
+    }
+
+    std::string line;
+    std::getline(file, line); // Skip header
+    while (std::getline(file, line)) {
+        std::stringstream ss(line);
+        std::string participant_id_str, name;
+        if (std::getline(ss, participant_id_str, ',') && std::getline(ss, name)) {
+            try {
+                size_t participant_id = std::stoul(participant_id_str);
+                userMap[name] = participant_id;
+                wxLogMessage("Loaded user: %s, PARTICIPANT_ID: %zu", name.c_str(), participant_id);
+            } catch (const std::exception& e) {
+                wxLogError("Invalid PARTICIPANT_ID in %s: %s", filename.c_str(), line.c_str());
+            }
+        }
+    }
+    file.close();
+    return true;
+}
+
+std::string Login::EscapeCSVField(const std::string& field) const {
+    if (field.find(',') == std::string::npos && field.find('"') == std::string::npos) {
+        return field;
+    }
+    std::string escaped = "\"";
+    for (char c : field) {
+        if (c == '"') escaped += '"';
+        escaped += c;
+    }
+    escaped += "\"";
+    return escaped;
+}
+
+void Login::SaveKeystrokesToCSV(const std::string& filename, const std::vector<KeyEvent>& events, 
+                                size_t participantId, size_t testSectionId, bool firstWrite) {
+    std::ofstream csvFile(filename, firstWrite ? std::ios::out : std::ios::app);
+    if (!csvFile.is_open()) {
+        wxLogError("Failed to open CSV file: %s", filename.c_str());
+        return;
+    }
+
+    if (firstWrite) {
+        csvFile << "PARTICIPANT_ID,TEST_SECTION_ID,SENTENCE,USER_INPUT,KEYSTROKE_ID,PRESS_TIME,RELEASE_TIME,LETTER,KEYCODE\n";
+        wxLogMessage("Wrote CSV header to %s", filename.c_str());
+    }
+
+    std::string sentence = Text->GetLabel().ToStdString();
+    std::string user_input = EnterArea->GetValue().ToStdString();
+
+    for (size_t i = 0; i < events.size(); ++i) {
+        const auto& event = events[i];
+        size_t keystroke_id = i + 1;
+        auto press_ms = std::chrono::duration_cast<std::chrono::milliseconds>(event.press_time.time_since_epoch()).count();
+        auto release_ms = std::chrono::duration_cast<std::chrono::milliseconds>(event.release_time.time_since_epoch()).count();
+
+        std::string letter;
+        if (event.key == WXK_SPACE) {
+            letter = " ";
+        } else if (event.key == WXK_BACK) {
+            letter = "BKSP";
+        } else if (event.key >= 0 && event.key < 128 && std::isprint(event.key)) {
+            letter = std::string(1, static_cast<char>(event.key));
+        } else {
+            letter = "UNKNOWN";
+        }
+
+        int keycode = event.key;
+
+        csvFile << participantId << ","
+                << testSectionId << ","
+                << EscapeCSVField(sentence) << ","
+                << EscapeCSVField(user_input) << ","
+                << keystroke_id << ","
+                << press_ms << ","
+                << release_ms << ","
+                << EscapeCSVField(letter) << ","
+                << keycode << "\n";
+
+        wxLogMessage("Wrote keystroke %zu: participant=%zu, test_section=%zu, keystroke_id=%zu, letter=%s, keycode=%d",
+                     i + 1, participantId, testSectionId, keystroke_id, letter.c_str(), keycode);
+    }
+
+    csvFile.flush();
+    csvFile.close();
+    wxLogMessage("Saved %zu keystrokes to %s (firstWrite: %d)", events.size(), filename.c_str(), firstWrite);
+}
 
 void Login::OnBackEnter(wxMouseEvent& event) {
     if (Back) {
@@ -126,6 +225,16 @@ void Login::LoadGMMFromUsername() {
         return;
     }
 
+    std::string usernameStr = username.ToStdString();
+    auto it = userMap.find(usernameStr);
+    if (it == userMap.end()) {
+        wxLogMessage("Username not found: %s", usernameStr.c_str());
+        wxMessageBox(wxString::Format(_("Username '%s' not found in user database."), username), 
+                     _("Error"), wxOK | wxICON_ERROR, this);
+        usernameInput->Clear();
+        return;
+    }
+
     gmmFilename = username + ".gmm";
     if (!wxFileExists(gmmFilename)) {
         wxLogMessage("GMM file not found: %s", gmmFilename.c_str());
@@ -148,18 +257,31 @@ void Login::LoadGMMFromUsername() {
 }
 
 void Login::OnKeyDown(wxKeyEvent& event) {
+    int key = event.GetKeyCode();
+    if (key == 306 || key == 307) { // Ignore Shift keys
+        wxLogMessage("Ignoring Shift key down: %d", key);
+        event.Skip();
+        return;
+    }
     KeyEvent ke;
-    ke.key = event.GetKeyCode();
+    ke.key = key;
     ke.press_time = std::chrono::steady_clock::now();
     key_events.push_back(ke);
+    wxLogMessage("Key down: %d (char: %c)", ke.key, (ke.key >= 0 && ke.key < 128 && std::isprint(ke.key)) ? static_cast<char>(ke.key) : ' ');
     event.Skip();
 }
 
 void Login::OnKeyUp(wxKeyEvent& event) {
     int key = event.GetKeyCode();
+    if (key == 306 || key == 307) {
+        wxLogMessage("Ignoring Shift key up: %d", key);
+        event.Skip();
+        return;
+    }
     for (auto& ke : key_events) {
         if (ke.key == key && ke.release_time == std::chrono::steady_clock::time_point()) {
             ke.release_time = std::chrono::steady_clock::now();
+            wxLogMessage("Key up: %d (char: %c)", key, (key >= 0 && key < 128 && std::isprint(key)) ? static_cast<char>(key) : ' ');
             break;
         }
     }
@@ -172,11 +294,22 @@ void Login::OnEnterPressed(wxCommandEvent& event) {
         if (gmmFilename.IsEmpty()) return;
     }
 
+    wxString username = usernameInput->GetValue().Trim();
+    std::string usernameStr = username.ToStdString();
+    auto it = userMap.find(usernameStr);
+    if (it == userMap.end()) {
+        wxMessageBox(wxString::Format(_("Username '%s' not found in user database."), username), 
+                     _("Error"), wxOK | wxICON_ERROR, this);
+        return;
+    }
+    size_t participantId = it->second;
+
     wxString entered = EnterArea->GetValue().Trim().Trim(false);
     wxString expected = Text->GetLabel().Trim().Trim(false);
 
-    wxLogMessage("Entered: '%s'", entered.c_str());
-    wxLogMessage("Expected: '%s'", expected.c_str());
+    wxLogMessage("Entered: '%s' (length: %zu)", entered.c_str(), entered.length());
+    wxLogMessage("Expected: '%s' (length: %zu)", expected.c_str(), expected.length());
+    wxLogMessage("Raw key events collected: %zu", key_events.size());
 
     if (entered != expected) {
         wxMessageBox(_("Text does not match. Please try again."), _("Incorrect Input"), wxOK | wxICON_WARNING, this);
@@ -185,13 +318,71 @@ void Login::OnEnterPressed(wxCommandEvent& event) {
         return;
     }
 
+    std::vector<KeyEvent> filteredEvents;
+    std::string expectedStr = expected.ToStdString();
+    size_t expectedPos = 0;
+
+    wxLogMessage("Filtering key events...");
+    for (size_t i = 0; i < key_events.size() && expectedPos < expectedStr.length(); ++i) {
+        int key = key_events[i].key;
+        char keyChar = (key >= 0 && key < 128 && std::isprint(key)) ? static_cast<char>(key) : ' ';
+        if (key == WXK_BACK) {
+            if (!filteredEvents.empty()) {
+                filteredEvents.pop_back();
+                if (expectedPos > 0) expectedPos--;
+            }
+            wxLogMessage("Backspace detected at index %zu, removed last event. Expected pos: %zu", i, expectedPos);
+        } else {
+            char expectedChar = std::tolower(expectedStr[expectedPos]);
+            if ((std::tolower(keyChar) == expectedChar) || (keyChar == ' ' && expectedChar == ' ')) {
+                filteredEvents.push_back(key_events[i]);
+                expectedPos++;
+                wxLogMessage("Matched key '%c' (code %d) at pos %zu", keyChar, key, expectedPos - 1);
+            } else {
+                wxLogMessage("Skipped key '%c' (code %d) at pos %zu, expected '%c'", keyChar, key, expectedPos, expectedChar);
+            }
+        }
+    }
+
+    wxLogMessage("Filtered events: %zu, Expected length: %zu", filteredEvents.size(), expectedStr.length());
+    if (filteredEvents.size() != expectedStr.length()) {
+        wxMessageBox(wxString::Format(_("Keystroke data does not match expected phrase length. Filtered: %zu, Expected: %zu"),
+                                      filteredEvents.size(), expectedStr.length()),
+                     _("Error"), wxOK | wxICON_WARNING, this);
+        EnterArea->Clear();
+        key_events.clear();
+        return;
+    }
+
+    wxMilliSleep(100);
+    wxYield();
+
+    for (size_t i = 0; i < filteredEvents.size(); ++i) {
+        if (filteredEvents[i].release_time == std::chrono::steady_clock::time_point()) {
+            if (i + 1 < filteredEvents.size() && filteredEvents[i + 1].press_time != std::chrono::steady_clock::time_point()) {
+                filteredEvents[i].release_time = filteredEvents[i + 1].press_time;
+            } else {
+                filteredEvents[i].release_time = std::chrono::steady_clock::now();
+            }
+            wxLogMessage("Assigned release_time for key %d (char: %c) at index %zu", 
+                         filteredEvents[i].key, 
+                         (filteredEvents[i].key >= 0 && filteredEvents[i].key < 128 && std::isprint(filteredEvents[i].key)) ? static_cast<char>(filteredEvents[i].key) : ' ', 
+                         i);
+        }
+    }
+
+    // Save keystrokes to CSV
+    wxString csvFilename = username + "_keystrokes.csv";
+    testSectionId++;
+    SaveKeystrokesToCSV(csvFilename.ToStdString(), filteredEvents, participantId, testSectionId, testSectionId == 1);
+
     std::vector<Vec2> features;
-    for (size_t i = 0; i < key_events.size() - 1; ++i) {
-        if (key_events[i].release_time != std::chrono::steady_clock::time_point() &&
-            key_events[i + 1].press_time != std::chrono::steady_clock::time_point()) {
-            double dwell = std::chrono::duration<double, std::milli>(key_events[i].release_time - key_events[i].press_time).count();
-            double flight = std::chrono::duration<double, std::milli>(key_events[i + 1].press_time - key_events[i].release_time).count();
-            if (dwell >= 0 && flight >= -1000 && flight < 1000) {
+    for (size_t i = 0; i < filteredEvents.size() - 1; ++i) {
+        if (filteredEvents[i].release_time != std::chrono::steady_clock::time_point() &&
+            filteredEvents[i + 1].press_time != std::chrono::steady_clock::time_point()) {
+            double dwell = std::chrono::duration<double, std::milli>(filteredEvents[i].release_time - filteredEvents[i].press_time).count();
+            double flight = std::chrono::duration<double, std::milli>(filteredEvents[i + 1].press_time - filteredEvents[i].release_time).count();
+            if (dwell >= 0 && flight >= -1000 && flight < 10000) {
                 features.emplace_back(dwell, flight);
                 wxLogMessage("Login Feature %zu: dwell=%f, flight=%f", features.size(), dwell, flight);
             }
@@ -209,6 +400,7 @@ void Login::OnEnterPressed(wxCommandEvent& event) {
             wxMessageBox(_("Not enough valid keystrokes for authentication."), _("Error"), wxOK | wxICON_WARNING, this);
             currentTextIndex = 0;
             Text->SetLabel(textSamples[0]);
+            testSectionId = 0;
             EnterArea->Clear();
             key_events.clear();
         }
@@ -235,9 +427,7 @@ void Login::OnEnterPressed(wxCommandEvent& event) {
         wxLogMessage("Authentication successful for %s", matchedUser.c_str());
         wxMessageBox(wxString::Format(_("Login successful for %s! Redirecting to Welcome Page..."), matchedUser),
                      _("Success"), wxOK | wxICON_INFORMATION, this);
-        // Pass keystroke data to WelcomePage
-        WelcomePage* welcomePage = new WelcomePage(nullptr, wxID_ANY, _("Welcome"),
-            features, ll); // Pass features and likelihood
+        WelcomePage* welcomePage = new WelcomePage(nullptr, wxID_ANY, _("Welcome"), features, ll);
         welcomePage->Show(true);
         this->Close(true);
     } else {
@@ -249,6 +439,7 @@ void Login::OnEnterPressed(wxCommandEvent& event) {
         } else {
             currentTextIndex = 0;
             Text->SetLabel(textSamples[0]);
+            testSectionId = 0;
         }
         EnterArea->Clear();
         key_events.clear();

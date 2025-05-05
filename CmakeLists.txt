@@ -6,6 +6,10 @@ project(KSD)
 set(DEPENDENCIES_BUILD_FOLDER "${PROJECT_SOURCE_DIR}/thirdparty/" CACHE STRING "Build folder for dependecies")
 set(SOURCE_FOLDER "${PROJECT_SOURCE_DIR}/src/" CACHE STRING "source folder for library")
 set(DEMOS_FOLDER "${PROJECT_SOURCE_DIR}/demo/" CACHE STRING "demos folder for Demonstration usages")
+set(KEYSTROKES_PATH "${CMAKE_SOURCE_DIR}/data/")
+
+# Configure the header file
+configure_file(${CMAKE_SOURCE_DIR}/Config/Config.h.in ${CMAKE_BINARY_DIR}/Config/Config.h)
 
 #Donload dependencies
 add_subdirectory(${DEPENDENCIES_BUILD_FOLDER})

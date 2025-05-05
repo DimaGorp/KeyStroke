@@ -1,10 +1,7 @@
 #pragma once
 
-///////////////////////////////////////////////////////////////////////////////
-/// Class SignUp
-///////////////////////////////////////////////////////////////////////////////
 #include <wx/artprov.h>
-#include <wx/wx.h>  // Ensure base setup
+#include <wx/wx.h>
 #include <wx/xrc/xmlres.h>
 #include <wx/intl.h>
 #include <wx/string.h>
@@ -22,17 +19,12 @@
 #include <wx/icon.h>
 #include <wx/msgdlg.h>
 #include <wx/sizer.h>
-#include <fstream> // Required for CSV file I/O
+#include <fstream>
 #include <vector>
 #include <cmath>
 #include <chrono>
-// In SignupPage.hpp and LoginPage.hpp
-#include "Core/GMM/GMM.hpp" // Instead of just "GMM.hpp"
-struct KeyEvent {
-    int key;
-    std::chrono::steady_clock::time_point press_time;
-    std::chrono::steady_clock::time_point release_time = std::chrono::steady_clock::time_point();
-};
+#include "Core/GMM/GMM.hpp"
+
 
 class SignUp : public wxFrame {
 public:
@@ -61,8 +53,8 @@ private:
     void OnKeyUp(wxKeyEvent& event);
     void OnEnterPressed(wxCommandEvent& event);
     void UpdateText();
-    void SaveFeaturesToCSV(const std::string& filename, const std::vector<KeyEvent>& events, 
-                          const std::vector<Vec2>& feats, bool firstWrite); // Добавлен параметр bool firstWrite
+    void SaveFeaturesToCSV(const std::string& filename, const std::vector<KeyEvent>& events, bool firstWrite);
+    std::string EscapeCSVField(const std::string& field) const;
 
     DECLARE_EVENT_TABLE()
 };

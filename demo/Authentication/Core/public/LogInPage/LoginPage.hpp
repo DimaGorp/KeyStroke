@@ -1,31 +1,17 @@
 #pragma once
-///////////////////////////////////////////////////////////////////////////////
-/// Class Login
-///////////////////////////////////////////////////////////////////////////////
-#include <wx/artprov.h>
-#include <wx/xrc/xmlres.h>
-#include <wx/intl.h>
-#include <wx/string.h>
+
+#include <wx/wx.h>
 #include <wx/frame.h>
-#include <wx/gdicmn.h>
-#include <wx/richtext/richtextctrl.h>
-#include <wx/font.h>
-#include <wx/colour.h>
-#include <wx/settings.h>
-#include <wx/msgdlg.h>
-#include <wx/stattext.h>
-#include <wx/filedlg.h>
-#include <wx/button.h>
-#include <wx/bitmap.h>
-#include <wx/log.h>
-#include <wx/image.h>
-#include <wx/icon.h>
 #include <wx/sizer.h>
+#include <wx/stattext.h>
+#include <wx/textctrl.h>
+#include <wx/button.h>
 #include <vector>
 #include <chrono>
-#include <filesystem>
-#include <wx/wx.h>
-#include "GMM/GMM.hpp"
+#include <string>
+#include <map>
+#include "Core/GMM/GMM.hpp"
+#include "Keys/KeyEvent.hpp"
 
 class Login : public wxFrame {
 public:
@@ -35,23 +21,21 @@ public:
     ~Login();
 
 private:
-    struct KeyEvent {
-        int key;
-        std::chrono::steady_clock::time_point press_time;
-        std::chrono::steady_clock::time_point release_time = std::chrono::steady_clock::time_point();
-    };
+    static const size_t MIN_SAMPLES = 50; // Match SignUp
 
     wxButton* Back;
     wxStaticText* HelpingText;
     wxStaticText* Text;
     wxTextCtrl* EnterArea;
-    wxTextCtrl* usernameInput; // New username input
+    wxTextCtrl* usernameInput;
     std::vector<wxString> textSamples;
     size_t currentTextIndex;
-    std::vector<KeyEvent> key_events;
-    std::vector<Vec2> features; // Assuming Vec2 is {x: dwell, y: flight}
     wxString gmmFilename;
+    size_t testSectionId; // Track TEST_SECTION_ID
+
+    std::vector<KeyEvent> key_events;
     GMM storedGmm;
+    std::map<std::string, size_t> userMap; // NAME to PARTICIPANT_ID
 
     void OnBackEnter(wxMouseEvent& event);
     void OnBackLeave(wxMouseEvent& event);
@@ -62,6 +46,10 @@ private:
     void OnKeyUp(wxKeyEvent& event);
     void OnEnterPressed(wxCommandEvent& event);
     void UpdateText();
+    bool LoadUserMap(const std::string& filename);
+    void SaveKeystrokesToCSV(const std::string& filename, const std::vector<KeyEvent>& events, 
+                            size_t participantId, size_t testSectionId, bool firstWrite);
+    std::string EscapeCSVField(const std::string& field) const;
 
-    DECLARE_EVENT_TABLE()
+    wxDECLARE_EVENT_TABLE();
 };

@@ -1,9 +1,9 @@
-#include <wx/wx.h>
+
 #include <wx/log.h>
+#include <sstream>
+#include <cctype>
 #include "SignupPage/SignupPage.hpp"
 #include "HomePage/HomePage.hpp"
-#include <fstream>
-#include <cctype>
 
 BEGIN_EVENT_TABLE(SignUp, wxFrame)
     EVT_KEY_DOWN(SignUp::OnKeyDown)
@@ -112,29 +112,90 @@ void SignUp::OnKeyUp(wxKeyEvent& event) {
     event.Skip();
 }
 
-void SignUp::SaveFeaturesToCSV(const std::string& filename, const std::vector<KeyEvent>& events, 
-    const std::vector<Vec2>& feats, bool firstWrite) {
-    std::ofstream csvFile(filename, firstWrite ? std::ios::out : std::ios::app);
-    if (csvFile.is_open()) {
-    if (firstWrite) {
-    csvFile << "Key,DwellTime(ms),FlightTime(ms)\n";
-    wxLogMessage("Wrote CSV header to %s", filename.c_str());
+std::string SignUp::EscapeCSVField(const std::string& field) const {
+    if (field.find(',') == std::string::npos && field.find('"') == std::string::npos) {
+        return field;
     }
-    wxLogMessage("Saving %zu features to %s", feats.size(), filename.c_str());
-    for (size_t i = 0; i < feats.size(); ++i) {
-    int key = events[i].key;
-    char keyChar = (key >= 0 && key < 128 && std::isprint(key)) ? static_cast<char>(key) : ' ';
-    csvFile << keyChar << "," << feats[i].x << "," << feats[i].y << "\n";
-    wxLogMessage("Wrote feature %zu: key=%d (char: %c), dwell=%f, flight=%f", 
-    i + 1, key, keyChar, feats[i].x, feats[i].y);
+    std::string escaped = "\"";
+    for (char c : field) {
+        if (c == '"') escaped += '"';
+        escaped += c;
     }
-    csvFile.flush(); // Добавляем сброс буфера
-    csvFile.close();
-    wxLogMessage("Appended %zu features to %s (firstWrite: %d)", feats.size(), filename.c_str(), firstWrite);
-    } else {
-    wxLogError("Failed to open CSV file: %s", filename.c_str());
-    }
+    escaped += "\"";
+    return escaped;
 }
+
+void SignUp::SaveFeaturesToCSV(const std::string& filename, const std::vector<KeyEvent>& events, bool firstWrite) {
+    std::ofstream csvFile(filename, firstWrite ? std::ios::out : std::ios::app);
+    if (!csvFile.is_open()) {
+        wxLogError("Failed to open CSV file: %s", filename.c_str());
+        return;
+    }
+
+    // Write header if first write
+    if (firstWrite) {
+        csvFile << "PARTICIPANT_ID,TEST_SECTION_ID,SENTENCE,USER_INPUT,KEYSTROKE_ID,PRESS_TIME,RELEASE_TIME,LETTER,KEYCODE\n";
+        wxLogMessage("Wrote CSV header to %s", filename.c_str());
+    }
+
+    // Generate PARTICIPANT_ID (hash of username for simplicity)
+    std::string username = m_textCtrl2->GetValue().ToStdString();
+    std::hash<std::string> hasher;
+    size_t participant_id = hasher(username);
+
+    // Get SENTENCE and USER_INPUT
+    std::string sentence = Text->GetLabel().ToStdString();
+    std::string user_input = EnterArea->GetValue().ToStdString();
+
+    // TEST_SECTION_ID based on currentTextIndex
+    size_t test_section_id = currentTextIndex + 1;
+
+    // Write each keystroke event
+    for (size_t i = 0; i < events.size(); ++i) {
+        const auto& event = events[i];
+
+        // KEYSTROKE_ID (1-based index)
+        size_t keystroke_id = i + 1;
+
+        // PRESS_TIME and RELEASE_TIME in milliseconds since epoch
+        auto press_ms = std::chrono::duration_cast<std::chrono::milliseconds>(event.press_time.time_since_epoch()).count();
+        auto release_ms = std::chrono::duration_cast<std::chrono::milliseconds>(event.release_time.time_since_epoch()).count();
+
+        // LETTER
+        std::string letter;
+        if (event.key == WXK_SPACE) {
+            letter = " ";
+        } else if (event.key == WXK_BACK) {
+            letter = "BKSP";
+        } else if (event.key >= 0 && event.key < 128 && std::isprint(event.key)) {
+            letter = std::string(1, static_cast<char>(event.key));
+        } else {
+            letter = "UNKNOWN";
+        }
+
+        // KEYCODE
+        int keycode = event.key;
+
+        // Write row with escaped fields
+        csvFile << participant_id << ","
+                << test_section_id << ","
+                << EscapeCSVField(sentence) << ","
+                << EscapeCSVField(user_input) << ","
+                << keystroke_id << ","
+                << press_ms << ","
+                << release_ms << ","
+                << EscapeCSVField(letter) << ","
+                << keycode << "\n";
+
+        wxLogMessage("Wrote keystroke %zu: participant=%zu, test_section=%zu, keystroke_id=%zu, letter=%s, keycode=%d",
+                     i + 1, participant_id, test_section_id, keystroke_id, letter.c_str(), keycode);
+    }
+
+    csvFile.flush();
+    csvFile.close();
+    wxLogMessage("Saved %zu keystrokes to %s (firstWrite: %d)", events.size(), filename.c_str(), firstWrite);
+}
+
 void SignUp::OnEnterPressed(wxCommandEvent& event) {
     wxString entered = EnterArea->GetValue().Trim().Trim(false);
     wxString expected = Text->GetLabel().Trim().Trim(false);
@@ -188,7 +249,6 @@ void SignUp::OnEnterPressed(wxCommandEvent& event) {
         return;
     }
 
-    // Логируем все события в filteredEvents
     wxLogMessage("Logging filtered events...");
     for (size_t i = 0; i < filteredEvents.size(); ++i) {
         wxLogMessage("Filtered event %zu: key=%d (char: %c), press_time=%lld, release_time=%lld", 
@@ -199,8 +259,7 @@ void SignUp::OnEnterPressed(wxCommandEvent& event) {
                      std::chrono::duration_cast<std::chrono::milliseconds>(filteredEvents[i].release_time.time_since_epoch()).count());
     }
 
-    // Даем больше времени для обработки событий
-    wxMilliSleep(100); // Ждем 100 мс
+    wxMilliSleep(100);
     wxYield();
 
     for (size_t i = 0; i < filteredEvents.size(); ++i) {
@@ -251,11 +310,7 @@ void SignUp::OnEnterPressed(wxCommandEvent& event) {
     wxString username = m_textCtrl2->GetValue();
     wxString csvFilename = username + "_keystrokes.csv";
     if (currentTextIndex < textSamples.size()) {
-        if (currentFeatures.size() == filteredEvents.size() - 1) {
-            SaveFeaturesToCSV(csvFilename.ToStdString(), filteredEvents, currentFeatures, currentTextIndex == 0);
-        } else {
-            wxLogError("Mismatch: %zu features computed, expected %zu", currentFeatures.size(), filteredEvents.size() - 1);
-        }
+        SaveFeaturesToCSV(csvFilename.ToStdString(), filteredEvents, currentTextIndex == 0);
     }
 
     if (currentTextIndex < textSamples.size() - 1) {

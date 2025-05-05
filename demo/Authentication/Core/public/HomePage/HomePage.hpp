@@ -14,6 +14,10 @@
 #include <wx/image.h>
 #include <wx/icon.h>
 #include <wx/sizer.h>
+#include <fstream>
+#include <filesystem>
+#include <sstream>
+#include <random>
 ///////////////////////////////////////////////////////////////////////////////
 /// Class HomePage
 ///////////////////////////////////////////////////////////////////////////////
@@ -35,6 +39,10 @@ class HomePage : public wxFrame
 		void OnSignUpLeave(wxMouseEvent& event);
 		void OnLoginClick(wxCommandEvent& event);
 		void OnSignUpClick(wxCommandEvent& event);
+		void HomePage::GenerateCSVWithRandomNames(const std::string& directoryPath, const std::string& outputCSV) ;
 		~HomePage();
+	private:
+    	std::string generateRandomName(int length); 
+		
 
 };
