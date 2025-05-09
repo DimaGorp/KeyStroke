@@ -1,17 +1,17 @@
 #pragma once
 
 #include <wx/wx.h>
-#include <wx/frame.h>
-#include <wx/sizer.h>
+#include <wx/button.h>
 #include <wx/stattext.h>
 #include <wx/textctrl.h>
-#include <wx/button.h>
-#include <vector>
-#include <chrono>
+#include <wx/sizer.h>
+#include <wx/log.h>
 #include <string>
+#include <vector>
 #include <map>
+#include <chrono>
 #include "Core/GMM/GMM.hpp"
-#include "Keys/KeyEvent.hpp"
+#include "KeyEvent.hpp"
 
 class Login : public wxFrame {
 public:
@@ -21,22 +21,25 @@ public:
     ~Login();
 
 private:
-    static const size_t MIN_SAMPLES = 50; // Match SignUp
+    static const size_t MIN_SAMPLES = 50;
 
     wxButton* Back;
     wxStaticText* HelpingText;
     wxStaticText* Text;
-    wxTextCtrl* EnterArea;
     wxTextCtrl* usernameInput;
+    wxTextCtrl* EnterArea;
     std::vector<wxString> textSamples;
     size_t currentTextIndex;
-    wxString gmmFilename;
-    size_t testSectionId; // Track TEST_SECTION_ID
-
+    size_t testSectionId;
     std::vector<KeyEvent> key_events;
     GMM storedGmm;
-    std::map<std::string, size_t> userMap; // NAME to PARTICIPANT_ID
+    wxString gmmFilename;
+    std::map<std::string, std::pair<unsigned long long, std::string>> userMap; // Store PARTICIPANT_ID and SENTENCES
 
+    bool LoadUserMap(const std::string& filename);
+    std::string EscapeCSVField(const std::string& field) const;
+    void SaveKeystrokesToCSV(const std::string& filename, const std::vector<KeyEvent>& events, 
+                            unsigned long long participantId, size_t testSectionId, bool firstWrite);
     void OnBackEnter(wxMouseEvent& event);
     void OnBackLeave(wxMouseEvent& event);
     void OnBackClicked(wxCommandEvent& event);
@@ -46,10 +49,6 @@ private:
     void OnKeyUp(wxKeyEvent& event);
     void OnEnterPressed(wxCommandEvent& event);
     void UpdateText();
-    bool LoadUserMap(const std::string& filename);
-    void SaveKeystrokesToCSV(const std::string& filename, const std::vector<KeyEvent>& events, 
-                            size_t participantId, size_t testSectionId, bool firstWrite);
-    std::string EscapeCSVField(const std::string& field) const;
 
-    wxDECLARE_EVENT_TABLE();
+    DECLARE_EVENT_TABLE()
 };

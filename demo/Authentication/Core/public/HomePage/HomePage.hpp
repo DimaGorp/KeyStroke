@@ -21,28 +21,30 @@
 ///////////////////////////////////////////////////////////////////////////////
 /// Class HomePage
 ///////////////////////////////////////////////////////////////////////////////
-class HomePage : public wxFrame
-{
-
-	protected:
+class HomePage : public wxFrame {
+	public:
+		HomePage(wxWindow* parent, wxWindowID id, const wxString& title, 
+				 const wxPoint& pos = wxDefaultPosition, const wxSize& size = wxDefaultSize, 
+				 long style = wxDEFAULT_FRAME_STYLE);
+		~HomePage();
+	
+	private:
 		wxStaticText* Welcome_Text;
 		wxStaticText* Description;
 		wxButton* LogIN_BTN;
 		wxButton* SignUpBtn;
-
-	public:
-
-		HomePage( wxWindow* parent, wxWindowID id = wxID_ANY, const wxString& title = wxEmptyString, const wxPoint& pos = wxDefaultPosition, const wxSize& size = wxSize( 672,458 ), long style = wxDEFAULT_FRAME_STYLE|wxTAB_TRAVERSAL );
+	
 		void OnLoginEnter(wxMouseEvent& event);
 		void OnLoginLeave(wxMouseEvent& event);
 		void OnSignUpEnter(wxMouseEvent& event);
 		void OnSignUpLeave(wxMouseEvent& event);
 		void OnLoginClick(wxCommandEvent& event);
 		void OnSignUpClick(wxCommandEvent& event);
-		void HomePage::GenerateCSVWithRandomNames(const std::string& directoryPath, const std::string& outputCSV) ;
-		~HomePage();
 	private:
-    	std::string generateRandomName(int length); 
-		
-
-};
+		std::string generateRandomName(int length);
+		std::string EscapeCSVField(const std::string& field) const;
+		void GenerateCSVWithRandomNames(const std::string& directoryPath, const std::string& outputCSV);
+		void TrainGMMsForParticipants(const std::string& dataDir, const std::string& userCSV) ;
+	
+		wxDECLARE_EVENT_TABLE();
+	};

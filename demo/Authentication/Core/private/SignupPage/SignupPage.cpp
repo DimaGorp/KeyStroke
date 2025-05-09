@@ -1,8 +1,12 @@
-
 #include <wx/log.h>
 #include <sstream>
 #include <cctype>
+#include <filesystem>
+#include <fstream>
+#include <functional>
+#include <algorithm>
 #include "SignupPage/SignupPage.hpp"
+#include "Config.h"
 #include "HomePage/HomePage.hpp"
 
 BEGIN_EVENT_TABLE(SignUp, wxFrame)
@@ -48,7 +52,7 @@ SignUp::SignUp(wxWindow* parent, wxWindowID id, const wxString& title, const wxP
     Context->Add(Text, 0, wxALL | wxEXPAND, 5);
     wxLogMessage("Initial text set to: '%s'", Text->GetLabel().c_str());
 
-    EnterArea = new wxTextCtrl(this, wxID_ANY, wxEmptyString, wxDefaultPosition, wxDefaultSize, wxTE_PROCESS_ENTER);
+    EnterArea = new wxTextCtrl(this, wxID_ANY, wxEmptyString, wxDefaultPosition, wxSize(600, -1), wxTE_PROCESS_ENTER);
     Context->Add(EnterArea, 1, wxALL|wxEXPAND, 5);
 
     Area->Add(Context, 1, wxALIGN_CENTER|wxALL, 100);
@@ -71,12 +75,89 @@ void SignUp::OnTextCtrlFocus(wxFocusEvent& event) {
 }
 
 void SignUp::OnTextCtrlEnter(wxCommandEvent& event) {
-    if (!m_textCtrl2->GetValue().IsEmpty()) {
-        EnterArea->Enable(true);
-        EnterArea->SetFocus();
-    } else {
+    wxString username = m_textCtrl2->GetValue().Trim();
+    wxString usernameLower = username.Lower();
+    if (username.IsEmpty()) {
         wxMessageBox(_("Please enter a name before proceeding."), _("Input Required"), wxOK | wxICON_WARNING, this);
+        return;
     }
+
+    namespace fs = std::filesystem;
+    fs::path gmmPath = fs::u8path("./resources/" + usernameLower.ToStdString() + ".gmm");
+    fs::path csvPath = fs::u8path("./resources/users.csv");
+    wxLogMessage("Checking for existing user: GMM at %s, CSV at %s", gmmPath.u8string().c_str(), csvPath.u8string().c_str());
+
+    bool userInCSV = false;
+    bool gmmExists = fs::exists(gmmPath);
+
+    if (fs::exists(csvPath)) {
+        std::ifstream userFile(csvPath, std::ios::binary);
+        if (!userFile.is_open()) {
+            wxLogError("Cannot open users.csv for reading: %s", csvPath.u8string().c_str());
+            wxMessageBox(_("Failed to read users.csv."), _("Error"), wxOK | wxICON_ERROR, this);
+            return;
+        }
+        std::string line;
+        std::getline(userFile, line);
+        wxLogMessage("CSV header: %s", line.c_str());
+        while (std::getline(userFile, line)) {
+            if (line.empty()) continue;
+            wxLogMessage("Checking CSV line: %s", line.c_str());
+            std::stringstream ss(line);
+            std::string pid, name, sentences;
+            if (std::getline(ss, pid, ',') && std::getline(ss, name, ',')) {
+                name.erase(0, name.find_first_not_of(" \t\r\n"));
+                name.erase(name.find_last_not_of(" \t\r\n") + 1);
+                std::string normalizedName = name;
+                std::transform(normalizedName.begin(), normalizedName.end(), normalizedName.begin(), ::tolower);
+                wxLogMessage("Comparing normalized CSV name '%s' with input '%s'", normalizedName.c_str(), usernameLower.ToStdString().c_str());
+                if (normalizedName == usernameLower.ToStdString()) {
+                    userInCSV = true;
+                    wxLogMessage("Found user '%s' in users.csv", name.c_str());
+                    break;
+                }
+            }
+        }
+        userFile.close();
+    }
+
+    wxLogMessage("Check result: gmmExists=%d, userInCSV=%d for username '%s'", gmmExists, userInCSV, usernameLower.c_str());
+
+    if (gmmExists) {
+        if (!userInCSV) {
+            bool firstWrite = !fs::exists(csvPath);
+            std::ofstream csvFile(csvPath, std::ios::app | std::ios::binary);
+            if (!csvFile.is_open()) {
+                wxLogError("Failed to open users.csv for appending: %s", csvPath.u8string().c_str());
+                wxMessageBox(_("Failed to update users.csv."), _("Error"), wxOK | wxICON_ERROR, this);
+                return;
+            }
+
+            if (firstWrite) {
+                csvFile << "PARTICIPANT_ID,NAME,SENTENCES\n";
+                wxLogMessage("Wrote users.csv header to %s", csvPath.u8string().c_str());
+            }
+
+            std::string sentences;
+            for (size_t i = 0; i < textSamples.size(); ++i) {
+                sentences += textSamples[i].ToStdString();
+                if (i < textSamples.size() - 1) sentences += "|";
+            }
+
+            std::hash<std::string> hasher;
+            size_t participant_id = hasher(usernameLower.ToStdString());
+            csvFile << "\n"<<participant_id << "," << EscapeCSVField(username.ToStdString()) << "," << '"'<<EscapeCSVField(sentences)<<'"';
+            csvFile.flush();
+            csvFile.close();
+            wxLogMessage("Appended user %s (ID: %zu) to %s with default SENTENCES due to existing GMM", usernameLower.c_str(), participant_id, csvPath.u8string().c_str());
+        }
+        wxMessageBox(wxString::Format(_("Username '%s' is already registered."), username),
+                     _("Error"), wxOK | wxICON_ERROR, this);
+        return;
+    }
+
+    EnterArea->Enable(true);
+    EnterArea->SetFocus();
 }
 
 void SignUp::OnKeyDown(wxKeyEvent& event) {
@@ -132,36 +213,26 @@ void SignUp::SaveFeaturesToCSV(const std::string& filename, const std::vector<Ke
         return;
     }
 
-    // Write header if first write
     if (firstWrite) {
         csvFile << "PARTICIPANT_ID,TEST_SECTION_ID,SENTENCE,USER_INPUT,KEYSTROKE_ID,PRESS_TIME,RELEASE_TIME,LETTER,KEYCODE\n";
         wxLogMessage("Wrote CSV header to %s", filename.c_str());
     }
 
-    // Generate PARTICIPANT_ID (hash of username for simplicity)
-    std::string username = m_textCtrl2->GetValue().ToStdString();
+    std::string username = m_textCtrl2->GetValue().Lower().ToStdString();
     std::hash<std::string> hasher;
     size_t participant_id = hasher(username);
 
-    // Get SENTENCE and USER_INPUT
     std::string sentence = Text->GetLabel().ToStdString();
     std::string user_input = EnterArea->GetValue().ToStdString();
 
-    // TEST_SECTION_ID based on currentTextIndex
     size_t test_section_id = currentTextIndex + 1;
 
-    // Write each keystroke event
     for (size_t i = 0; i < events.size(); ++i) {
         const auto& event = events[i];
-
-        // KEYSTROKE_ID (1-based index)
         size_t keystroke_id = i + 1;
-
-        // PRESS_TIME and RELEASE_TIME in milliseconds since epoch
         auto press_ms = std::chrono::duration_cast<std::chrono::milliseconds>(event.press_time.time_since_epoch()).count();
         auto release_ms = std::chrono::duration_cast<std::chrono::milliseconds>(event.release_time.time_since_epoch()).count();
 
-        // LETTER
         std::string letter;
         if (event.key == WXK_SPACE) {
             letter = " ";
@@ -173,10 +244,8 @@ void SignUp::SaveFeaturesToCSV(const std::string& filename, const std::vector<Ke
             letter = "UNKNOWN";
         }
 
-        // KEYCODE
         int keycode = event.key;
 
-        // Write row with escaped fields
         csvFile << participant_id << ","
                 << test_section_id << ","
                 << EscapeCSVField(sentence) << ","
@@ -212,6 +281,10 @@ void SignUp::OnEnterPressed(wxCommandEvent& event) {
         EnterArea->Clear();
         return;
     }
+
+    // Add sentence to typedSentences
+    typedSentences.insert(Text->GetLabel());
+    wxLogMessage("Added sentence to typedSentences: '%s' (total: %zu)", Text->GetLabel().c_str(), typedSentences.size());
 
     std::vector<KeyEvent> filteredEvents;
     std::string expectedStr = expected.ToStdString();
@@ -251,9 +324,9 @@ void SignUp::OnEnterPressed(wxCommandEvent& event) {
 
     wxLogMessage("Logging filtered events...");
     for (size_t i = 0; i < filteredEvents.size(); ++i) {
-        wxLogMessage("Filtered event %zu: key=%d (char: %c), press_time=%lld, release_time=%lld", 
-                     i, 
-                     filteredEvents[i].key, 
+        wxLogMessage("Filtered event %zu: key=%d (char: %c), press_time=%lld, release_time=%lld",
+                     i,
+                     filteredEvents[i].key,
                      (filteredEvents[i].key >= 0 && filteredEvents[i].key < 128 && std::isprint(filteredEvents[i].key)) ? static_cast<char>(filteredEvents[i].key) : ' ',
                      std::chrono::duration_cast<std::chrono::milliseconds>(filteredEvents[i].press_time.time_since_epoch()).count(),
                      std::chrono::duration_cast<std::chrono::milliseconds>(filteredEvents[i].release_time.time_since_epoch()).count());
@@ -269,35 +342,35 @@ void SignUp::OnEnterPressed(wxCommandEvent& event) {
             } else {
                 filteredEvents[i].release_time = std::chrono::steady_clock::now();
             }
-            wxLogMessage("Assigned release_time for key %d (char: %c) at index %zu", 
-                         filteredEvents[i].key, 
-                         (filteredEvents[i].key >= 0 && filteredEvents[i].key < 128 && std::isprint(filteredEvents[i].key)) ? static_cast<char>(filteredEvents[i].key) : ' ', 
+            wxLogMessage("Assigned release_time for key %d (char: %c) at index %zu",
+                         filteredEvents[i].key,
+                         (filteredEvents[i].key >= 0 && filteredEvents[i].key < 128 && std::isprint(filteredEvents[i].key)) ? static_cast<char>(filteredEvents[i].key) : ' ',
                          i);
         }
     }
 
     std::vector<Vec2> currentFeatures;
     for (size_t i = 0; i < filteredEvents.size() - 1; ++i) {
-        double dwell = std::chrono::duration<double, std::milli>(filteredEvents[i].release_time - filteredEvents[i].press_time).count();
-        double flight = std::chrono::duration<double, std::milli>(filteredEvents[i + 1].press_time - filteredEvents[i].release_time).count();
-        wxLogMessage("Processing feature %zu: key=%d (char: %c) to key=%d (char: %c), dwell=%f, flight=%f", 
-                     i + 1, 
-                     filteredEvents[i].key, 
+        double dwell = std::chrono::duration_cast<std::chrono::microseconds>(filteredEvents[i].release_time - filteredEvents[i].press_time).count() / 1000.0;
+        double flight = std::chrono::duration_cast<std::chrono::microseconds>(filteredEvents[i + 1].press_time - filteredEvents[i].release_time).count() / 1000.0;
+        wxLogMessage("Processing feature %zu: key=%d (char: %c) to key=%d (char: %c), dwell=%f, flight=%f",
+                     i + 1,
+                     filteredEvents[i].key,
                      (filteredEvents[i].key >= 0 && filteredEvents[i].key < 128 && std::isprint(filteredEvents[i].key)) ? static_cast<char>(filteredEvents[i].key) : ' ',
                      filteredEvents[i + 1].key,
                      (filteredEvents[i + 1].key >= 0 && filteredEvents[i + 1].key < 128 && std::isprint(filteredEvents[i + 1].key)) ? static_cast<char>(filteredEvents[i + 1].key) : ' ',
                      dwell, flight);
         if (dwell >= 0 && flight >= -1000 && flight < 10000) {
             currentFeatures.emplace_back(dwell, flight);
-            wxLogMessage("Added feature %zu: key=%d (char: %c), dwell=%f, flight=%f", 
-                         currentFeatures.size(), 
-                         filteredEvents[i].key, 
+            wxLogMessage("Added feature %zu: key=%d (char: %c), dwell=%f, flight=%f",
+                         currentFeatures.size(),
+                         filteredEvents[i].key,
                          (filteredEvents[i].key >= 0 && filteredEvents[i].key < 128 && std::isprint(filteredEvents[i].key)) ? static_cast<char>(filteredEvents[i].key) : ' ',
                          dwell, flight);
         } else {
-            wxLogMessage("Skipped feature %zu: key=%d (char: %c), dwell=%f, flight=%f (out of bounds)", 
-                         i + 1, 
-                         filteredEvents[i].key, 
+            wxLogMessage("Skipped feature %zu: key=%d (char: %c), dwell=%f, flight=%f (out of bounds)",
+                         i + 1,
+                         filteredEvents[i].key,
                          (filteredEvents[i].key >= 0 && filteredEvents[i].key < 128 && std::isprint(filteredEvents[i].key)) ? static_cast<char>(filteredEvents[i].key) : ' ',
                          dwell, flight);
         }
@@ -307,8 +380,8 @@ void SignUp::OnEnterPressed(wxCommandEvent& event) {
 
     features.insert(features.end(), currentFeatures.begin(), currentFeatures.end());
 
-    wxString username = m_textCtrl2->GetValue();
-    wxString csvFilename = username + "_keystrokes.csv";
+    wxString usernameLower = m_textCtrl2->GetValue().Lower();
+    wxString csvFilename = usernameLower + "_keystrokes.csv";
     if (currentTextIndex < textSamples.size()) {
         SaveFeaturesToCSV(csvFilename.ToStdString(), filteredEvents, currentTextIndex == 0);
     }
@@ -317,13 +390,13 @@ void SignUp::OnEnterPressed(wxCommandEvent& event) {
         UpdateText();
         EnterArea->Clear();
         key_events.clear();
-        wxLogMessage(wxString::Format(_("Completed sentence %zu of %zu. Total features so far: %zu"), 
+        wxLogMessage(wxString::Format(_("Completed sentence %zu of %zu. Total features so far: %zu"),
                                       currentTextIndex, textSamples.size(), features.size()));
         return;
     }
 
     if (features.size() < MIN_SAMPLES) {
-        wxMessageBox(wxString::Format(_("Not enough valid keystroke data (%zu features) to train GMM. Required: %zu"), 
+        wxMessageBox(wxString::Format(_("Not enough valid keystroke data (%zu features) to train GMM. Required: %zu"),
                                       features.size(), MIN_SAMPLES),
                      _("Error"), wxOK | wxICON_ERROR, this);
         features.clear();
@@ -358,11 +431,108 @@ void SignUp::OnEnterPressed(wxCommandEvent& event) {
             return;
         }
 
-        wxString gmmFilename = username + ".gmm";
+        wxString gmmFilename = "./resources/" + usernameLower + ".gmm";
         gmm.save(gmmFilename.ToStdString());
 
-        wxMessageBox(wxString::Format(_("User %s signed up successfully with %zu keystrokes! Redirecting to Home Page..."), 
-                                      username, features.size()),
+        namespace fs = std::filesystem;
+        fs::path csvPath = fs::u8path("./resources/users.csv");
+        bool userInCSV = false;
+        std::vector<std::string> existingLines;
+        std::string existingPid;
+        if (fs::exists(csvPath)) {
+            std::ifstream userFile(csvPath, std::ios::binary);
+            if (!userFile.is_open()) {
+                wxLogError("Cannot open users.csv for reading: %s", csvPath.u8string().c_str());
+            } else {
+                std::string line;
+                std::getline(userFile, line);
+                existingLines.push_back("PARTICIPANT_ID,NAME,SENTENCES");
+                while (std::getline(userFile, line)) {
+                    if (line.empty()) continue;
+                    std::stringstream ss(line);
+                    std::string pid, name, sentences;
+                    if (std::getline(ss, pid, ',') && std::getline(ss, name, ',')) {
+                        std::string normalizedName = name;
+                        std::transform(normalizedName.begin(), normalizedName.end(), normalizedName.begin(), ::tolower);
+                        if (normalizedName == usernameLower.ToStdString()) {
+                            userInCSV = true;
+                            existingPid = pid;
+                            wxLogMessage("Found user '%s' in users.csv during signup", name.c_str());
+                        } else {
+                            existingLines.push_back(line);
+                        }
+                    }
+                }
+                userFile.close();
+            }
+        }
+
+        if (!userInCSV) {
+            bool firstWrite = !fs::exists(csvPath);
+            std::ofstream csvFile(csvPath, std::ios::out | std::ios::binary);
+            if (!csvFile.is_open()) {
+                wxLogError("Failed to open users.csv for writing: %s", csvPath.u8string().c_str());
+                wxMessageBox(_("Failed to save user data to users.csv."), _("Error"), wxOK | wxICON_ERROR, this);
+                return;
+            }
+
+            // Write header and existing lines
+            for (const auto& line : existingLines) {
+                csvFile << line << "\n";
+            }
+
+            // Join typedSentences for SENTENCES column
+            std::string sentences;
+            size_t i = 0;
+            for (const auto& sentence : typedSentences) {
+                sentences += sentence.ToStdString();
+                if (i < typedSentences.size() - 1) sentences += "|";
+                ++i;
+            }
+            wxLogMessage("Saving sentences to users.csv: %s", sentences.c_str());
+
+            std::hash<std::string> hasher;
+            size_t participant_id = hasher(usernameLower.ToStdString());
+            csvFile << "\n"<<participant_id << ","
+                    << EscapeCSVField(m_textCtrl2->GetValue().ToStdString()) << ","
+                    << '"'<<EscapeCSVField(sentences) <<'"';
+            csvFile.flush();
+            csvFile.close();
+            wxLogMessage("Appended user %s (ID: %zu) to %s with sentences", usernameLower.c_str(), participant_id, csvPath.u8string().c_str());
+        } else {
+            // Update existing user's SENTENCES
+            std::ofstream csvFile(csvPath, std::ios::out | std::ios::binary);
+            if (!csvFile.is_open()) {
+                wxLogError("Failed to open users.csv for writing: %s", csvPath.u8string().c_str());
+                wxMessageBox(_("Failed to save user data to users.csv."), _("Error"), wxOK | wxICON_ERROR, this);
+                return;
+            }
+
+            // Write header and existing lines
+            for (const auto& line : existingLines) {
+                csvFile << line << "\n";
+            }
+
+            // Join typedSentences for SENTENCES column
+            std::string sentences;
+            size_t i = 0;
+            for (const auto& sentence : typedSentences) {
+                sentences += sentence.ToStdString();
+                if (i < typedSentences.size() - 1) sentences += "|";
+                ++i;
+            }
+            wxLogMessage("Updating sentences in users.csv for %s: %s", usernameLower.c_str(), sentences.c_str());
+
+            csvFile << existingPid << ","
+                    << EscapeCSVField(m_textCtrl2->GetValue().ToStdString()) << ","
+                    << EscapeCSVField(sentences) << "\n";
+            csvFile.flush();
+            csvFile.close();
+            wxLogMessage("Updated user %s (ID: %s) in %s with sentences", usernameLower.c_str(), existingPid.c_str(), csvPath.u8string().c_str());
+        }
+
+        wxMessageBox(wxString::Format(_("User %s signed up successfully with %zu keystrokes! Redirecting to Home Page..."),
+                                      m_textCtrl2->GetValue(), features.size()),
                      _("Success"), wxOK | wxICON_INFORMATION, this);
         HomePage* homeWindow = new HomePage(nullptr, wxID_ANY, "Home");
         homeWindow->Show(true);

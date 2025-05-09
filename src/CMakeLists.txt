@@ -7,10 +7,11 @@ set(SRC_INCLUDE_DIRS "${SOURCE_FOLDER}/KDModule/public/" CACHE STRING "SOURCE IN
 set(SRC_SOURCE_DIRS "${SOURCE_FOLDER}/KDModule/private/" CACHE STRING "SOURCE DIRECTORIES")
 
 set(EVENT_INCLUDE_DIRS "${SOURCE_FOLDER}/Events/public/Keys" CACHE STRING "Event INCLUDE DIRECTORIES")
-message("${CORE_SOURCE_DIRS}")
-add_library(EventSystem INTERFACE)
 
-target_include_directories(EventSystem INTERFACE  "${EVENT_INCLUDE_DIRS}/KeyEvent.hpp")
+add_library(EventSystem INTERFACE)
+target_include_directories(EventSystem INTERFACE "${EVENT_INCLUDE_DIRS}/KeyEvent.hpp")
+
+
 add_library(GMM STATIC 
             "${CORE_SOURCE_DIRS}/GMM/GMM.cpp")
 target_include_directories(GMM PUBLIC 

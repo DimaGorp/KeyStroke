@@ -21,10 +21,11 @@
 #include <wx/sizer.h>
 #include <fstream>
 #include <vector>
+#include <set>
 #include <cmath>
 #include <chrono>
 #include "Core/GMM/GMM.hpp"
-
+#include "KeyEvent.hpp"
 
 class SignUp : public wxFrame {
 public:
@@ -42,6 +43,7 @@ private:
     wxTextCtrl* EnterArea;
     std::vector<wxString> textSamples;
     size_t currentTextIndex;
+    std::set<wxString> typedSentences;
 
     std::vector<KeyEvent> all_key_events;
     std::vector<KeyEvent> key_events;

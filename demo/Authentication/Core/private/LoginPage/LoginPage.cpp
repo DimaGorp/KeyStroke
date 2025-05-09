@@ -1,9 +1,9 @@
-
 #include <wx/filefn.h>
 #include <wx/log.h>
 #include <fstream>
 #include <sstream>
 #include <cctype>
+#include <algorithm>
 #include "LoginPage/LoginPage.hpp"
 #include "WelcomePage/WelcomePage.hpp"
 #include "HomePage/HomePage.hpp"
@@ -17,7 +17,7 @@ wxEND_EVENT_TABLE()
 
 Login::Login(wxWindow* parent, wxWindowID id, const wxString& title, 
              const wxPoint& pos, const wxSize& size, long style)
-    : wxFrame(parent, id, title, pos, size, style), currentTextIndex(0), testSectionId(0), storedGmm(2) {
+    : wxFrame(parent, id, title, pos, size, style), currentTextIndex(0), storedGmm(2) {
     wxLog::SetActiveTarget(new wxLogStderr());
     wxLogMessage("Login window initialized");
 
@@ -47,7 +47,7 @@ Login::Login(wxWindow* parent, wxWindowID id, const wxString& title,
     Context->Add(UsernameSizer, 0, wxALL | wxEXPAND, 5);
 
     HelpingText = new wxStaticText(this, wxID_ANY, _("Type the text below and press Enter:"), 
-                                  wxDefaultPosition, wxSize(600, -1), wxST_NO_AUTORESIZE);
+                                  wxDefaultPosition, wxSize(600, -1), 0);
     HelpingText->SetFont(wxFont(22, wxFONTFAMILY_DEFAULT, wxFONTSTYLE_NORMAL, 
                                wxFONTWEIGHT_NORMAL, false, wxT("Georgia")));
     HelpingText->Wrap(600);
@@ -62,14 +62,15 @@ Login::Login(wxWindow* parent, wxWindowID id, const wxString& title,
         _("Crazy Fredrick bought many very exquisite opal jewels")
     };
     Text = new wxStaticText(this, wxID_ANY, textSamples[0], 
-                           wxDefaultPosition, wxSize(600, -1), wxST_NO_AUTORESIZE);
+                           wxDefaultPosition, wxSize(600, -1), 0);
     Text->SetFont(wxFont(15, wxFONTFAMILY_DEFAULT, wxFONTSTYLE_NORMAL, 
                         wxFONTWEIGHT_NORMAL, false, wxT("Georgia")));
     Text->Wrap(600);
-    Context->Add(Text, 0, wxALL, 5);
+    Context->Add(Text, 0, wxALL | wxEXPAND, 5);
 
     EnterArea = new wxTextCtrl(this, wxID_ANY, wxEmptyString, 
-                              wxDefaultPosition, wxDefaultSize, wxTE_PROCESS_ENTER);
+                              wxDefaultPosition, wxSize(600, -1), wxTE_PROCESS_ENTER);
+    EnterArea->Enable(false); // Disable by default
     Context->Add(EnterArea, 1, wxALL | wxEXPAND, 5);
 
     Area->Add(BackSizer, 0, wxALIGN_LEFT | wxALL, 5);
@@ -88,7 +89,7 @@ Login::Login(wxWindow* parent, wxWindowID id, const wxString& title,
     usernameInput->Bind(wxEVT_TEXT_ENTER, &Login::OnUsernameEnter, this);
 
     // Load users.csv
-    if (!LoadUserMap("users.csv")) {
+    if (!LoadUserMap("./resources/users.csv")) {
         wxLogError("Failed to load users.csv");
         wxMessageBox(_("Failed to load user database."), _("Error"), wxOK | wxICON_ERROR, this);
     }
@@ -97,7 +98,7 @@ Login::Login(wxWindow* parent, wxWindowID id, const wxString& title,
 Login::~Login() {}
 
 bool Login::LoadUserMap(const std::string& filename) {
-    std::ifstream file(filename);
+    std::ifstream file(filename, std::ios::binary);
     if (!file.is_open()) {
         wxLogError("Cannot open %s", filename.c_str());
         return false;
@@ -105,88 +106,53 @@ bool Login::LoadUserMap(const std::string& filename) {
 
     std::string line;
     std::getline(file, line); // Skip header
+    wxLogMessage("CSV header: %s", line.c_str());
     while (std::getline(file, line)) {
+        if (line.empty()) continue;
+        wxLogMessage("Parsing CSV line: %s", line.c_str());
         std::stringstream ss(line);
-        std::string participant_id_str, name;
-        if (std::getline(ss, participant_id_str, ',') && std::getline(ss, name)) {
-            try {
-                size_t participant_id = std::stoul(participant_id_str);
-                userMap[name] = participant_id;
-                wxLogMessage("Loaded user: %s, PARTICIPANT_ID: %zu", name.c_str(), participant_id);
-            } catch (const std::exception& e) {
-                wxLogError("Invalid PARTICIPANT_ID in %s: %s", filename.c_str(), line.c_str());
-            }
+        std::string participant_id_str, name, sentences;
+
+        // Parse PARTICIPANT_ID
+        if (!std::getline(ss, participant_id_str, ',')) {
+            wxLogWarning("Invalid CSV line (missing PARTICIPANT_ID): %s", line.c_str());
+            continue;
+        }
+        // Parse NAME
+        if (!std::getline(ss, name, ',')) {
+            wxLogWarning("Invalid CSV line (missing NAME): %s", line.c_str());
+            continue;
+        }
+        // Parse SENTENCES
+        std::getline(ss, sentences); // Read rest of line
+        // Trim whitespace and handle quotes
+        name.erase(0, name.find_first_not_of(" \t\r\n\""));
+        name.erase(name.find_last_not_of(" \t\r\n\"") + 1);
+        sentences.erase(0, sentences.find_first_not_of(" \t\r\n\""));
+        sentences.erase(sentences.find_last_not_of(" \t\r\n\"") + 1);
+        // Clean sentences: remove internal newlines and control characters
+        sentences.erase(std::remove_if(sentences.begin(), sentences.end(), 
+                                       [](char c) { return c == '\n' || c == '\r' || (c < 32 && c != '\t'); }), 
+                       sentences.end());
+        if (name.empty()) {
+            wxLogWarning("Empty username in CSV line: %s", line.c_str());
+            continue;
+        }
+        // Normalize to lowercase for userMap
+        std::string normalizedName = name;
+        std::transform(normalizedName.begin(), normalizedName.end(), normalizedName.begin(), ::tolower);
+        try {
+            unsigned long long participant_id = std::stoull(participant_id_str);
+            userMap[normalizedName] = {participant_id, sentences};
+            wxLogMessage("Loaded user: %s (normalized: %s), PARTICIPANT_ID: %llu, SENTENCES: %s", 
+                         name.c_str(), normalizedName.c_str(), participant_id, sentences.c_str());
+        } catch (const std::exception& e) {
+            wxLogError("Invalid PARTICIPANT_ID in %s: %s (%s)", filename.c_str(), line.c_str(), e.what());
         }
     }
     file.close();
+    wxLogMessage("Loaded %zu users into userMap", userMap.size());
     return true;
-}
-
-std::string Login::EscapeCSVField(const std::string& field) const {
-    if (field.find(',') == std::string::npos && field.find('"') == std::string::npos) {
-        return field;
-    }
-    std::string escaped = "\"";
-    for (char c : field) {
-        if (c == '"') escaped += '"';
-        escaped += c;
-    }
-    escaped += "\"";
-    return escaped;
-}
-
-void Login::SaveKeystrokesToCSV(const std::string& filename, const std::vector<KeyEvent>& events, 
-                                size_t participantId, size_t testSectionId, bool firstWrite) {
-    std::ofstream csvFile(filename, firstWrite ? std::ios::out : std::ios::app);
-    if (!csvFile.is_open()) {
-        wxLogError("Failed to open CSV file: %s", filename.c_str());
-        return;
-    }
-
-    if (firstWrite) {
-        csvFile << "PARTICIPANT_ID,TEST_SECTION_ID,SENTENCE,USER_INPUT,KEYSTROKE_ID,PRESS_TIME,RELEASE_TIME,LETTER,KEYCODE\n";
-        wxLogMessage("Wrote CSV header to %s", filename.c_str());
-    }
-
-    std::string sentence = Text->GetLabel().ToStdString();
-    std::string user_input = EnterArea->GetValue().ToStdString();
-
-    for (size_t i = 0; i < events.size(); ++i) {
-        const auto& event = events[i];
-        size_t keystroke_id = i + 1;
-        auto press_ms = std::chrono::duration_cast<std::chrono::milliseconds>(event.press_time.time_since_epoch()).count();
-        auto release_ms = std::chrono::duration_cast<std::chrono::milliseconds>(event.release_time.time_since_epoch()).count();
-
-        std::string letter;
-        if (event.key == WXK_SPACE) {
-            letter = " ";
-        } else if (event.key == WXK_BACK) {
-            letter = "BKSP";
-        } else if (event.key >= 0 && event.key < 128 && std::isprint(event.key)) {
-            letter = std::string(1, static_cast<char>(event.key));
-        } else {
-            letter = "UNKNOWN";
-        }
-
-        int keycode = event.key;
-
-        csvFile << participantId << ","
-                << testSectionId << ","
-                << EscapeCSVField(sentence) << ","
-                << EscapeCSVField(user_input) << ","
-                << keystroke_id << ","
-                << press_ms << ","
-                << release_ms << ","
-                << EscapeCSVField(letter) << ","
-                << keycode << "\n";
-
-        wxLogMessage("Wrote keystroke %zu: participant=%zu, test_section=%zu, keystroke_id=%zu, letter=%s, keycode=%d",
-                     i + 1, participantId, testSectionId, keystroke_id, letter.c_str(), keycode);
-    }
-
-    csvFile.flush();
-    csvFile.close();
-    wxLogMessage("Saved %zu keystrokes to %s (firstWrite: %d)", events.size(), filename.c_str(), firstWrite);
 }
 
 void Login::OnBackEnter(wxMouseEvent& event) {
@@ -214,46 +180,99 @@ void Login::OnBackClicked(wxCommandEvent& event) {
     this->Close(true);
 }
 
-void Login::OnUsernameEnter(wxCommandEvent& event) {
-    LoadGMMFromUsername();
-}
-
 void Login::LoadGMMFromUsername() {
     wxString username = usernameInput->GetValue().Trim();
+    wxString usernameLower = username.Lower();
     if (username.IsEmpty()) {
         wxMessageBox(_("Please enter a username."), _("Input Required"), wxOK | wxICON_WARNING, this);
+        EnterArea->Enable(false);
+        EnterArea->Clear();
         return;
     }
 
-    std::string usernameStr = username.ToStdString();
-    auto it = userMap.find(usernameStr);
+    std::string usernameLowerStr = usernameLower.ToStdString();
+    auto it = userMap.find(usernameLowerStr);
     if (it == userMap.end()) {
-        wxLogMessage("Username not found: %s", usernameStr.c_str());
+        wxLogMessage("Username not found: %s", usernameLowerStr.c_str());
         wxMessageBox(wxString::Format(_("Username '%s' not found in user database."), username), 
                      _("Error"), wxOK | wxICON_ERROR, this);
         usernameInput->Clear();
+        EnterArea->Enable(false);
+        EnterArea->Clear();
         return;
     }
 
-    gmmFilename = username + ".gmm";
+    // Load sentences from userMap
+    textSamples.clear();
+    std::string sentences = it->second.second;
+    if (sentences.empty()) {
+        wxLogMessage("No sentences found for user: %s", usernameLowerStr.c_str());
+        wxMessageBox(wxString::Format(_("No sentences found for user '%s'."), username), 
+                     _("Error"), wxOK | wxICON_ERROR, this);
+        usernameInput->Clear();
+        EnterArea->Enable(false);
+        EnterArea->Clear();
+        return;
+    }
+
+    std::stringstream ss(sentences);
+    std::string sentence;
+    while (std::getline(ss, sentence, '|')) {
+        if (!sentence.empty()) {
+            // Clean individual sentence
+            sentence.erase(std::remove_if(sentence.begin(), sentence.end(), 
+                                         [](char c) { return c == '\n' || c == '\r' || (c < 32 && c != '\t'); }), 
+                          sentence.end());
+            textSamples.push_back(wxString(sentence));
+            wxLogMessage("Loaded sentence for %s: %s (length: %zu)", 
+                         usernameLowerStr.c_str(), sentence.c_str(), sentence.length());
+        }
+    }
+    if (textSamples.empty()) {
+        wxLogMessage("No valid sentences parsed for user: %s", usernameLowerStr.c_str());
+        wxMessageBox(wxString::Format(_("No valid sentences found for user '%s'."), username), 
+                     _("Error"), wxOK | wxICON_ERROR, this);
+        usernameInput->Clear();
+        EnterArea->Enable(false);
+        EnterArea->Clear();
+        return;
+    }
+
+    currentTextIndex = 0;
+    Text->SetLabel(textSamples[0]);
+    Text->Wrap(600);
+    this->Layout();
+    wxLogMessage("Set initial text to: '%s' for user %s (length: %zu)", 
+                 textSamples[0].c_str(), usernameLowerStr.c_str(), textSamples[0].length());
+
+    gmmFilename = "./resources/" + usernameLower + ".gmm";
     if (!wxFileExists(gmmFilename)) {
         wxLogMessage("GMM file not found: %s", gmmFilename.c_str());
         wxMessageBox(wxString::Format(_("No GMM file found for user '%s'."), username), 
                      _("Error"), wxOK | wxICON_ERROR, this);
         usernameInput->Clear();
+        EnterArea->Enable(false);
+        EnterArea->Clear();
         return;
     }
 
     try {
         storedGmm.load(gmmFilename.ToStdString());
         wxLogMessage("Loaded GMM file: %s", gmmFilename.c_str());
+        EnterArea->Enable(true);
         EnterArea->SetFocus();
     } catch (const std::exception& e) {
         wxLogMessage("Failed to load GMM: %s", e.what());
         wxMessageBox(wxString::Format(_("Failed to load GMM for '%s'."), username), 
                      _("Error"), wxOK | wxICON_ERROR, this);
         usernameInput->Clear();
+        EnterArea->Enable(false);
+        EnterArea->Clear();
     }
+}
+
+void Login::OnUsernameEnter(wxCommandEvent& event) {
+    LoadGMMFromUsername();
 }
 
 void Login::OnKeyDown(wxKeyEvent& event) {
@@ -281,7 +300,7 @@ void Login::OnKeyUp(wxKeyEvent& event) {
     for (auto& ke : key_events) {
         if (ke.key == key && ke.release_time == std::chrono::steady_clock::time_point()) {
             ke.release_time = std::chrono::steady_clock::now();
-            wxLogMessage("Key up: %d (char: %c)", key, (key >= 0 && key < 128 && std::isprint(key)) ? static_cast<char>(key) : ' ');
+            wxLogMessage("Key up: %d (char: %c)", key, (key >= 0 && ke.key < 128 && std::isprint(key)) ? static_cast<char>(key) : ' ');
             break;
         }
     }
@@ -295,20 +314,29 @@ void Login::OnEnterPressed(wxCommandEvent& event) {
     }
 
     wxString username = usernameInput->GetValue().Trim();
-    std::string usernameStr = username.ToStdString();
-    auto it = userMap.find(usernameStr);
-    if (it == userMap.end()) {
-        wxMessageBox(wxString::Format(_("Username '%s' not found in user database."), username), 
-                     _("Error"), wxOK | wxICON_ERROR, this);
-        return;
-    }
-    size_t participantId = it->second;
+    wxString usernameLower = username.Lower();
 
-    wxString entered = EnterArea->GetValue().Trim().Trim(false);
-    wxString expected = Text->GetLabel().Trim().Trim(false);
+    // Use the original sentence from textSamples for comparison
+    wxString expected = textSamples[currentTextIndex];
+    wxString entered = EnterArea->GetValue();
 
-    wxLogMessage("Entered: '%s' (length: %zu)", entered.c_str(), entered.length());
-    wxLogMessage("Expected: '%s' (length: %zu)", expected.c_str(), expected.length());
+    // Normalize strings: remove newlines, control characters, and trim
+    std::string enteredStr = entered.ToStdString();
+    std::string expectedStr = expected.ToStdString();
+    enteredStr.erase(std::remove_if(enteredStr.begin(), enteredStr.end(), 
+                                    [](char c) { return c == '\n' || c == '\r' || (c < 32 && c != '\t'); }), 
+                     enteredStr.end());
+    expectedStr.erase(std::remove_if(expectedStr.begin(), expectedStr.end(), 
+                                     [](char c) { return c == '\n' || c == '\r' || (c < 32 && c != '\t'); }), 
+                      expectedStr.end());
+    entered = wxString(enteredStr).Trim().Trim(false);
+    expected = wxString(expectedStr).Trim().Trim(false);
+
+    wxLogMessage("Raw Entered: '%s' (length: %zu)", EnterArea->GetValue().c_str(), EnterArea->GetValue().length());
+    wxLogMessage("Raw Expected (from textSamples): '%s' (length: %zu)", textSamples[currentTextIndex].c_str(), textSamples[currentTextIndex].length());
+    wxLogMessage("Raw Displayed (from Text): '%s' (length: %zu)", Text->GetLabel().c_str(), Text->GetLabel().length());
+    wxLogMessage("Normalized Entered: '%s' (length: %zu)", entered.c_str(), entered.length());
+    wxLogMessage("Normalized Expected: '%s' (length: %zu)", expected.c_str(), expected.length());
     wxLogMessage("Raw key events collected: %zu", key_events.size());
 
     if (entered != expected) {
@@ -319,11 +347,11 @@ void Login::OnEnterPressed(wxCommandEvent& event) {
     }
 
     std::vector<KeyEvent> filteredEvents;
-    std::string expectedStr = expected.ToStdString();
+    std::string expectedCleanStr = expected.ToStdString();
     size_t expectedPos = 0;
 
     wxLogMessage("Filtering key events...");
-    for (size_t i = 0; i < key_events.size() && expectedPos < expectedStr.length(); ++i) {
+    for (size_t i = 0; i < key_events.size() && expectedPos < expectedCleanStr.length(); ++i) {
         int key = key_events[i].key;
         char keyChar = (key >= 0 && key < 128 && std::isprint(key)) ? static_cast<char>(key) : ' ';
         if (key == WXK_BACK) {
@@ -333,7 +361,7 @@ void Login::OnEnterPressed(wxCommandEvent& event) {
             }
             wxLogMessage("Backspace detected at index %zu, removed last event. Expected pos: %zu", i, expectedPos);
         } else {
-            char expectedChar = std::tolower(expectedStr[expectedPos]);
+            char expectedChar = std::tolower(expectedCleanStr[expectedPos]);
             if ((std::tolower(keyChar) == expectedChar) || (keyChar == ' ' && expectedChar == ' ')) {
                 filteredEvents.push_back(key_events[i]);
                 expectedPos++;
@@ -344,10 +372,10 @@ void Login::OnEnterPressed(wxCommandEvent& event) {
         }
     }
 
-    wxLogMessage("Filtered events: %zu, Expected length: %zu", filteredEvents.size(), expectedStr.length());
-    if (filteredEvents.size() != expectedStr.length()) {
+    wxLogMessage("Filtered events: %zu, Expected length: %zu", filteredEvents.size(), expectedCleanStr.length());
+    if (filteredEvents.size() != expectedCleanStr.length()) {
         wxMessageBox(wxString::Format(_("Keystroke data does not match expected phrase length. Filtered: %zu, Expected: %zu"),
-                                      filteredEvents.size(), expectedStr.length()),
+                                      filteredEvents.size(), expectedCleanStr.length()),
                      _("Error"), wxOK | wxICON_WARNING, this);
         EnterArea->Clear();
         key_events.clear();
@@ -370,11 +398,6 @@ void Login::OnEnterPressed(wxCommandEvent& event) {
                          i);
         }
     }
-
-    // Save keystrokes to CSV
-    wxString csvFilename = username + "_keystrokes.csv";
-    testSectionId++;
-    SaveKeystrokesToCSV(csvFilename.ToStdString(), filteredEvents, participantId, testSectionId, testSectionId == 1);
 
     std::vector<Vec2> features;
     for (size_t i = 0; i < filteredEvents.size() - 1; ++i) {
@@ -400,7 +423,8 @@ void Login::OnEnterPressed(wxCommandEvent& event) {
             wxMessageBox(_("Not enough valid keystrokes for authentication."), _("Error"), wxOK | wxICON_WARNING, this);
             currentTextIndex = 0;
             Text->SetLabel(textSamples[0]);
-            testSectionId = 0;
+            Text->Wrap(600);
+            this->Layout();
             EnterArea->Clear();
             key_events.clear();
         }
@@ -425,7 +449,7 @@ void Login::OnEnterPressed(wxCommandEvent& event) {
     if (ll > THRESHOLD) {
         wxString matchedUser = wxFileName(gmmFilename).GetName();
         wxLogMessage("Authentication successful for %s", matchedUser.c_str());
-        wxMessageBox(wxString::Format(_("Login successful for %s! Redirecting to Welcome Page..."), matchedUser),
+        wxMessageBox(wxString::Format(_("Login successful for %s! Redirecting to Welcome Page..."), username),
                      _("Success"), wxOK | wxICON_INFORMATION, this);
         WelcomePage* welcomePage = new WelcomePage(nullptr, wxID_ANY, _("Welcome"), features, ll);
         welcomePage->Show(true);
@@ -439,7 +463,8 @@ void Login::OnEnterPressed(wxCommandEvent& event) {
         } else {
             currentTextIndex = 0;
             Text->SetLabel(textSamples[0]);
-            testSectionId = 0;
+            Text->Wrap(600);
+            this->Layout();
         }
         EnterArea->Clear();
         key_events.clear();
@@ -450,5 +475,7 @@ void Login::UpdateText() {
     currentTextIndex = (currentTextIndex + 1) % textSamples.size();
     Text->SetLabel(textSamples[currentTextIndex]);
     Text->Wrap(600);
-    wxLogMessage("Updated text to: '%s' (index: %zu)", Text->GetLabel().c_str(), currentTextIndex);
+    this->Layout();
+    wxLogMessage("Updated text to: '%s' (index: %zu, length: %zu)", 
+                 textSamples[currentTextIndex].c_str(), currentTextIndex, textSamples[currentTextIndex].length());
 }
