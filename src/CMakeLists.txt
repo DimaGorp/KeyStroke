@@ -1,18 +1,21 @@
 #Core
+set(SOURCE_FOLDER "${CMAKE_CURRENT_SOURCE_DIR}")
 set(CORE_INCLUDE_DIRS "${SOURCE_FOLDER}/KDModule/public/Core" CACHE STRING "CORE INCLUDE DIRECTORIES")
 set(CORE_SOURCE_DIRS "${SOURCE_FOLDER}/KDModule/private/Core" CACHE STRING "CORE SOURCE DIRECTORIES")
 
 set(SRC_INCLUDE_DIRS "${SOURCE_FOLDER}/KDModule/public/" CACHE STRING "SOURCE INCLUDE DIRECTORIES")
 set(SRC_SOURCE_DIRS "${SOURCE_FOLDER}/KDModule/private/" CACHE STRING "SOURCE DIRECTORIES")
 
-# ImGui
-#[===[
+set(EVENT_INCLUDE_DIRS "${SOURCE_FOLDER}/Events/public/Keys" CACHE STRING "Event INCLUDE DIRECTORIES")
+
+add_library(EventSystem INTERFACE)
+target_include_directories(EventSystem INTERFACE "${EVENT_INCLUDE_DIRS}/KeyEvent.hpp")
 
 
-#Setup App as Library
-add_library(APP INTERFACE "${SRC_INCLUDE_DIRS}/Application/Application.hpp")
+add_library(GMM STATIC 
+            "${CORE_SOURCE_DIRS}/GMM/GMM.cpp")
+target_include_directories(GMM PUBLIC 
+    "${CORE_INCLUDE_DIRS}/"
+    "${SRC_INCLUDE_DIRS}"
+    )
 
-#target_include_directories(APP INTERFACE
-#    "${SRC_INCLUDE_DIRS}"
-#)
-]===]

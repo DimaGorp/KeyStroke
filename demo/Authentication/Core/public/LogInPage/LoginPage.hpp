@@ -1,40 +1,63 @@
 #pragma once
-///////////////////////////////////////////////////////////////////////////////
-/// Class Login
-///////////////////////////////////////////////////////////////////////////////
-#include <wx/artprov.h>
-#include <wx/xrc/xmlres.h>
-#include <wx/intl.h>
-#include <wx/string.h>
-#include <wx/frame.h>
-#include <wx/gdicmn.h>
-#include <wx/richtext/richtextctrl.h>
-#include <wx/font.h>
-#include <wx/colour.h>
-#include <wx/settings.h>
-#include <wx/stattext.h>
+
+#include <wx/wx.h>
 #include <wx/button.h>
-#include <wx/bitmap.h>
-#include <wx/image.h>
-#include <wx/icon.h>
+#include <wx/stattext.h>
+#include <wx/textctrl.h>
 #include <wx/sizer.h>
-class Login : public wxFrame
-{
-	private:
+#include <wx/log.h>
+#include <string>
+#include <vector>
+#include <map>
+#include <chrono>
+#include "Core/GMM/GMM.hpp"
+#include "Config.h"
+#include "KeyEvent.hpp"
 
-	protected:
-		wxButton* Back;
-		wxStaticText* HelpingText;
-		wxStaticText* Text;
-		wxRichTextCtrl* EnterArea;
-		wxButton* LogIN_BTN;
+class Login : public wxFrame {
+public:
+    Login(wxWindow* parent, wxWindowID id, const wxString& title, 
+          const wxPoint& pos = wxDefaultPosition, const wxSize& size = wxDefaultSize, 
+          long style = wxDEFAULT_FRAME_STYLE);
+    ~Login();
 
-	public:
+private:
+    static const size_t MIN_SAMPLES = 50;
 
-		Login( wxWindow* parent, wxWindowID id = wxID_ANY, const wxString& title = wxEmptyString, const wxPoint& pos = wxDefaultPosition, const wxSize& size = wxSize( 726,534 ), long style = wxDEFAULT_FRAME_STYLE|wxTAB_TRAVERSAL );
+    wxButton* Back;
+    wxStaticText* HelpingText;
+    wxStaticText* Text;
+    wxTextCtrl* usernameInput;
+#if DEBUG
+    wxButton* ForceLogin;
+#endif
+     // button for Debug
+    wxTextCtrl* EnterArea;
+    std::vector<wxString> textSamples;
+    size_t currentTextIndex;
+    size_t testSectionId;
+    std::vector<KeyEvent> key_events;
+    GMM storedGmm;
+    wxString gmmFilename;
+    std::map<std::string, std::pair<unsigned long long, std::string>> userMap; // Store PARTICIPANT_ID and SENTENCES
 
-		~Login();
-		void OnBackEnter(wxMouseEvent& event);
-		void OnBackLeave(wxMouseEvent& event);
-		void OnBackClicked(wxCommandEvent& event);
+    bool LoadUserMap(const std::string& filename);
+    std::string EscapeCSVField(const std::string& field) const;
+    void SaveKeystrokesToCSV(const std::string& filename, const std::vector<KeyEvent>& events, 
+                            unsigned long long participantId, size_t testSectionId, bool firstWrite);
+    void OnBackEnter(wxMouseEvent& event);
+    void OnBackLeave(wxMouseEvent& event);
+    void OnBackClicked(wxCommandEvent& event);
+    void OnUsernameEnter(wxCommandEvent& event);
+    void LoadGMMFromUsername();
+    void OnKeyDown(wxKeyEvent& event);
+    void OnKeyUp(wxKeyEvent& event);
+    void OnEnterPressed(wxCommandEvent& event);
+#if DEBUG
+    void OnForceLoginClicked(wxCommandEvent& event);
+#endif
+    
+    void UpdateText();
+
+    DECLARE_EVENT_TABLE()
 };
