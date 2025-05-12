@@ -265,6 +265,128 @@ void SignUp::SaveFeaturesToCSV(const std::string& filename, const std::vector<Ke
     wxLogMessage("Saved %zu keystrokes to %s (firstWrite: %d)", events.size(), filename.c_str(), firstWrite);
 }
 
+void SignUp::AppendToPreparedDataset() {
+    namespace fs = std::filesystem;
+    std::string outputCSV = "resources/csv/prepared_dataset.csv";
+    fs::path outputPath = fs::u8path(outputCSV);
+
+    wxLogMessage("Attempting to append to %s", outputCSV.c_str());
+    wxLogMessage("Absolute path: %s", fs::absolute(outputPath).u8string().c_str());
+    wxLogMessage("Number of features to write: %zu", features.size());
+
+    // Ensure directory exists
+    std::error_code ec;
+    fs::create_directories(outputPath.parent_path(), ec);
+    if (ec) {
+        wxLogError("Failed to create directory %s: %s", outputPath.parent_path().u8string().c_str(), ec.message().c_str());
+        wxMessageBox(wxString::Format(_("Failed to create directory for prepared_dataset.csv: %s"), ec.message().c_str()),
+                     _("Error"), wxOK | wxICON_ERROR, this);
+        return;
+    }
+    wxLogMessage("Ensured directory exists: %s", outputPath.parent_path().u8string().c_str());
+
+    // Open file in append mode, create if it doesn't exist
+    bool firstWrite = !fs::exists(outputPath);
+    std::ofstream outFile(outputPath, firstWrite ? std::ios::out : std::ios::app);
+    if (!outFile.is_open()) {
+        wxLogError("Could not open output CSV: %s", outputCSV.c_str());
+        // Try a fallback path
+        std::string fallbackCSV = "prepared_dataset_fallback.csv";
+        outFile.open(fallbackCSV, firstWrite ? std::ios::out : std::ios::app);
+        if (!outFile.is_open()) {
+            wxLogError("Could not open fallback CSV: %s", fallbackCSV.c_str());
+            wxMessageBox(_("Failed to save data to prepared_dataset.csv or fallback."), _("Error"), wxOK | wxICON_ERROR, this);
+            return;
+        }
+        wxLogMessage("Using fallback CSV: %s", fallbackCSV.c_str());
+        outputCSV = fallbackCSV;
+    }
+    wxLogMessage("Successfully opened %s (firstWrite: %d)", outputCSV.c_str(), firstWrite);
+
+    // Write header if it's a new file
+    if (firstWrite) {
+        outFile << "PARTICIPANT_ID,USERNAME,DWELL,FLIGHT,NORM_DWELL,NORM_FLIGHT,MAX_DWELL,MAX_FLIGHT\n";
+        if (!outFile.good()) {
+            wxLogError("Failed to write header to %s", outputCSV.c_str());
+            outFile.close();
+            return;
+        }
+        wxLogMessage("Wrote header to %s", outputCSV.c_str());
+    }
+
+    if (features.empty()) {
+        wxLogWarning("No features to write to %s", outputCSV.c_str());
+        outFile.close();
+        return;
+    }
+
+    // Check file stream state before writing features
+    if (!outFile.good()) {
+        wxLogError("File stream is not in a good state before writing features to %s", outputCSV.c_str());
+        outFile.close();
+        return;
+    }
+
+    std::string username = m_textCtrl2->GetValue().ToStdString();
+    std::string usernameLower = m_textCtrl2->GetValue().Lower().ToStdString();
+    std::hash<std::string> hasher;
+    size_t participant_id = hasher(usernameLower);
+
+    // Compute max_dwell and max_flight
+    double max_dwell = 0.0, max_flight = 0.0;
+    for (const auto& f : features) {
+        max_dwell = std::max(max_dwell, f.x);
+        max_flight = std::max(max_flight, f.y);
+    }
+    wxLogMessage("Computed max_dwell=%f, max_flight=%f", max_dwell, max_flight);
+
+    // Log start of feature write loop
+    wxLogMessage("Starting feature write loop with %zu features", features.size());
+
+    // Write features to CSV
+    size_t writtenFeatures = 0;
+    for (size_t i = 0; i < features.size(); ++i) {
+        const auto& f = features[i];
+        double dwell = f.x;
+        double flight = f.y;
+        double norm_dwell = max_dwell ? dwell / max_dwell : 0.0;
+        double norm_flight = max_flight ? flight / max_flight : 0.0;
+        wxLogMessage("Processing feature %zu: dwell=%f, flight=%f, norm_dwell=%f, norm_flight=%f", i + 1, dwell, flight, norm_dwell, norm_flight);
+        if (std::isfinite(dwell) && std::isfinite(flight) && std::isfinite(norm_dwell) && std::isfinite(norm_flight)) {
+            outFile << participant_id << ","
+                    << EscapeCSVField(username) << ","
+                    << dwell << ","
+                    << flight << ","
+                    << norm_dwell << ","
+                    << norm_flight << ","
+                    << max_dwell << ","
+                    << max_flight << "\n";
+            if (!outFile.good()) {
+                wxLogError("Write error after feature %zu to %s", i + 1, outputCSV.c_str());
+                outFile.close();
+                wxLogMessage("Feature write loop exited early due to write error");
+                return;
+            }
+            writtenFeatures++;
+            wxLogMessage("Wrote feature %zu: dwell=%f, flight=%f, norm_dwell=%f, norm_flight=%f", i + 1, dwell, flight, norm_dwell, norm_flight);
+        } else {
+            wxLogWarning("Skipped feature %zu: dwell=%f, flight=%f, norm_dwell=%f, norm_flight=%f (non-finite values)", i + 1, dwell, flight, norm_dwell, norm_flight);
+        }
+    }
+
+    wxLogMessage("Feature write loop completed: %zu features processed, %zu written", features.size(), writtenFeatures);
+
+    outFile.flush();
+    if (!outFile.good()) {
+        wxLogError("Flush failed for %s", outputCSV.c_str());
+        outFile.close();
+        return;
+    }
+    outFile.close();
+    wxLogMessage("Appended %zu features for user %s (ID: %zu) to %s", writtenFeatures, username.c_str(), participant_id, outputCSV.c_str());
+}
+
+// Updated OnEnterPressed with enhanced feature logging
 void SignUp::OnEnterPressed(wxCommandEvent& event) {
     wxString entered = EnterArea->GetValue().Trim().Trim(false);
     wxString expected = Text->GetLabel().Trim().Trim(false);
@@ -380,6 +502,12 @@ void SignUp::OnEnterPressed(wxCommandEvent& event) {
 
     features.insert(features.end(), currentFeatures.begin(), currentFeatures.end());
 
+    // Log features for current sentence
+    wxLogMessage("Current sentence features (%zu):", currentFeatures.size());
+    for (size_t i = 0; i < currentFeatures.size(); ++i) {
+        wxLogMessage("Feature %zu: dwell=%f, flight=%f", i + 1, currentFeatures[i].x, currentFeatures[i].y);
+    }
+
     wxString usernameLower = m_textCtrl2->GetValue().Lower();
     wxString csvFilename = usernameLower + "_keystrokes.csv";
     if (currentTextIndex < textSamples.size()) {
@@ -407,7 +535,15 @@ void SignUp::OnEnterPressed(wxCommandEvent& event) {
         return;
     }
 
-    GMM gmm(2);
+    wxLogMessage("Total features collected: %zu, proceeding to GMM training", features.size());
+
+    // Log all features before GMM training
+    wxLogMessage("All features (%zu):", features.size());
+    for (size_t i = 0; i < features.size(); ++i) {
+        wxLogMessage("Feature %zu: dwell=%f, flight=%f", i + 1, features[i].x, features[i].y);
+    }
+
+    GMM gmm(3);
     try {
         double max_dwell = 0, max_flight = 0;
         for (const auto& f : features) {
@@ -531,6 +667,12 @@ void SignUp::OnEnterPressed(wxCommandEvent& event) {
             wxLogMessage("Updated user %s (ID: %s) in %s with sentences", usernameLower.c_str(), existingPid.c_str(), csvPath.u8string().c_str());
         }
 
+        // Log features before appending
+        wxLogMessage("Preparing to append %zu features to prepared_dataset.csv", features.size());
+
+        // Append features to prepared_dataset.csv
+        AppendToPreparedDataset();
+
         wxMessageBox(wxString::Format(_("User %s signed up successfully with %zu keystrokes! Redirecting to Home Page..."),
                                       m_textCtrl2->GetValue(), features.size()),
                      _("Success"), wxOK | wxICON_INFORMATION, this);
@@ -538,6 +680,7 @@ void SignUp::OnEnterPressed(wxCommandEvent& event) {
         homeWindow->Show(true);
         this->Close(true);
     } catch (const std::exception& e) {
+        wxLogError("GMM training failed: %s", e.what());
         wxMessageBox(wxString::Format(_("GMM training failed: %s"), wxString(e.what(), wxConvUTF8)),
                      _("Error"), wxOK | wxICON_ERROR, this);
     }

@@ -17,28 +17,48 @@
 #include <wx/image.h>
 #include <wx/icon.h>
 #include <wx/sizer.h>
-
-#include <wx/wx.h>
+#include <wx/scrolwin.h>
 #include <vector>
-#include "GMM/GMM.hpp" // For Vec2 definition (assuming Vec2 is in GMM.hpp)
+#include "Core/GMM/GMM.hpp"
 #include "mathplot.h" // wxMathPlot header
+#include <wx/font.h>
+#include <wx/colour.h>
+#include <wx/settings.h>
+#include <wx/sizer.h>
+#include <wx/statbox.h>
+#include <wx/scrolwin.h>
+#include <wx/frame.h>
 
-class WelcomePage : public wxFrame {
-	public:
-		WelcomePage(wxWindow* parent, wxWindowID id, const wxString& title, 
-					const std::vector<Vec2>& keystrokes = std::vector<Vec2>(), 
-					double likelihood = 0.0, 
-					const wxPoint& pos = wxDefaultPosition, 
-					const wxSize& size = wxDefaultSize, 
-					long style = wxDEFAULT_FRAME_STYLE);
-		~WelcomePage();
-	
-	private:
-		wxStaticText* HelpingText;
-		wxStaticText* KeystrokeInfo;
-		mpWindow* chartWindow;
-		std::vector<Vec2> keystrokes;
-		double loginLikelihood;
-	
-		void CreateChart();
+class WelcomePage : public wxFrame
+{
+private:
+    bool LoadEvaluationMetrics(const std::string& filename, const std::string& username);
+    void CreateROCCurve();
+
+    std::string username;
+    std::vector<Vec2> keystrokes;
+    double loginLikelihood;
+    double Far, frr, eer, successRate; // Evaluation metrics
+    bool metricsLoaded; // Flag to indicate if metrics were found
+    std::vector<std::pair<double, double>> rocPoints; // ROC curve data (FPR, TPR)
+
+protected:
+    wxScrolledWindow* m_scrolledWindow1;
+    wxStaticText* HelpingText;
+    wxStaticText* FARText;
+    wxStaticText* FARValue;
+    wxStaticText* FRR;
+    wxStaticText* FRRValue;
+    wxStaticText* EER;
+    wxStaticText* EERValue;
+    wxStaticText* SR;
+    wxStaticText* SRValue;
+    mpWindow* rocWindow; // ROC curve plot
+
+public:
+    WelcomePage(wxWindow* parent, wxWindowID id, const wxString& title, 
+                const std::string& username, const std::vector<Vec2>& keystrokes, 
+                double likelihood, const wxPoint& pos = wxDefaultPosition, 
+                const wxSize& size = wxSize(1200, 800), long style = wxDEFAULT_FRAME_STYLE);
+    ~WelcomePage();
 };

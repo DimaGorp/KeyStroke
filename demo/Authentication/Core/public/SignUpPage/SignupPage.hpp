@@ -56,6 +56,7 @@ private:
     void OnEnterPressed(wxCommandEvent& event);
     void UpdateText();
     void SaveFeaturesToCSV(const std::string& filename, const std::vector<KeyEvent>& events, bool firstWrite);
+    void AppendToPreparedDataset();
     std::string EscapeCSVField(const std::string& field) const;
 
     DECLARE_EVENT_TABLE()

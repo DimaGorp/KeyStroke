@@ -8,11 +8,16 @@
 #include "WelcomePage/WelcomePage.hpp"
 #include "HomePage/HomePage.hpp"
 
+
 wxBEGIN_EVENT_TABLE(Login, wxFrame)
     EVT_BUTTON(wxID_ANY, Login::OnBackClicked)
     EVT_KEY_DOWN(Login::OnKeyDown)
     EVT_KEY_UP(Login::OnKeyUp)
     EVT_TEXT_ENTER(wxID_ANY, Login::OnEnterPressed)
+#if DEBUG
+        EVT_BUTTON(wxID_ANY, Login::OnForceLoginClicked) // Bind Force Login event in Debug
+
+#endif
 wxEND_EVENT_TABLE()
 
 Login::Login(wxWindow* parent, wxWindowID id, const wxString& title, 
@@ -72,7 +77,12 @@ Login::Login(wxWindow* parent, wxWindowID id, const wxString& title,
                               wxDefaultPosition, wxSize(600, -1), wxTE_PROCESS_ENTER);
     EnterArea->Enable(false); // Disable by default
     Context->Add(EnterArea, 1, wxALL | wxEXPAND, 5);
-
+#if DEBUG
+        ForceLogin = new wxButton(this, wxID_ANY, _("Force Login"), wxDefaultPosition, wxSize(100, 30));
+        ForceLogin->SetBackgroundColour(wxColour(0, 128, 0)); // Green for visibility
+        ForceLogin->SetForegroundColour(*wxWHITE);
+        Context->Add(ForceLogin, 0, wxALL | wxALIGN_CENTER, 10);
+#endif
     Area->Add(BackSizer, 0, wxALIGN_LEFT | wxALL, 5);
     Area->Add(Context, 1, wxALIGN_CENTER | wxALL, 100);
 
@@ -87,6 +97,9 @@ Login::Login(wxWindow* parent, wxWindowID id, const wxString& title,
     EnterArea->Bind(wxEVT_KEY_UP, &Login::OnKeyUp, this);
     EnterArea->Bind(wxEVT_TEXT_ENTER, &Login::OnEnterPressed, this);
     usernameInput->Bind(wxEVT_TEXT_ENTER, &Login::OnUsernameEnter, this);
+#if DEBUG
+    ForceLogin->Bind(wxEVT_BUTTON, &Login::OnForceLoginClicked, this);
+#endif        
 
     // Load users.csv
     if (!LoadUserMap("./resources/users.csv")) {
@@ -451,7 +464,9 @@ void Login::OnEnterPressed(wxCommandEvent& event) {
         wxLogMessage("Authentication successful for %s", matchedUser.c_str());
         wxMessageBox(wxString::Format(_("Login successful for %s! Redirecting to Welcome Page..."), username),
                      _("Success"), wxOK | wxICON_INFORMATION, this);
-        WelcomePage* welcomePage = new WelcomePage(nullptr, wxID_ANY, _("Welcome"), features, ll);
+        // Pass username to WelcomePage
+        WelcomePage* welcomePage = new WelcomePage(nullptr, wxID_ANY, _("Welcome"), 
+                                                  username.ToStdString(), features, ll);
         welcomePage->Show(true);
         this->Close(true);
     } else {
@@ -479,3 +494,22 @@ void Login::UpdateText() {
     wxLogMessage("Updated text to: '%s' (index: %zu, length: %zu)", 
                  textSamples[currentTextIndex].c_str(), currentTextIndex, textSamples[currentTextIndex].length());
 }
+#if DEBUG
+void Login::OnForceLoginClicked(wxCommandEvent& event) {
+    wxString username = usernameInput->GetValue().Trim();
+    if (username.IsEmpty()) {
+        wxMessageBox(_("Please enter a username to force login."), _("Input Required"), wxOK | wxICON_WARNING, this);
+        return;
+    }
+
+    wxLogMessage("Force login triggered for user: %s", username.c_str());
+    // Dummy features and likelihood for testing
+    std::vector<Vec2> dummyFeatures = {{100.0, 50.0}, {120.0, 60.0}}; // Example features
+    double dummyLikelihood = 0.95;
+
+    WelcomePage* welcomePage = new WelcomePage(nullptr, wxID_ANY, _("Welcome"), 
+                                              username.ToStdString(), dummyFeatures, dummyLikelihood);
+    welcomePage->Show(true);
+    this->Close(true);
+}
+#endif

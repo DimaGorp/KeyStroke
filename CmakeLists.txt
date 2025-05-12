@@ -7,6 +7,10 @@ set(DEPENDENCIES_BUILD_FOLDER "${PROJECT_SOURCE_DIR}/thirdparty/" CACHE STRING "
 set(SOURCE_FOLDER "${PROJECT_SOURCE_DIR}/src/" CACHE STRING "source folder for library")
 set(DEMOS_FOLDER "${PROJECT_SOURCE_DIR}/demo/" CACHE STRING "demos folder for Demonstration usages")
 set(KEYSTROKES_PATH "${CMAKE_SOURCE_DIR}/data/")
+set(DEBUG FALSE)
+if(CMAKE_BUILD_TYPE STREQUAL "Debug")
+    set(DEBUG TRUE)
+endif()
 
 # Configure the header file
 configure_file(${CMAKE_SOURCE_DIR}/Config/Config.h.in ${CMAKE_BINARY_DIR}/Config/Config.h)

@@ -11,6 +11,7 @@
 #include <map>
 #include <chrono>
 #include "Core/GMM/GMM.hpp"
+#include "Config.h"
 #include "KeyEvent.hpp"
 
 class Login : public wxFrame {
@@ -27,6 +28,10 @@ private:
     wxStaticText* HelpingText;
     wxStaticText* Text;
     wxTextCtrl* usernameInput;
+#if DEBUG
+    wxButton* ForceLogin;
+#endif
+     // button for Debug
     wxTextCtrl* EnterArea;
     std::vector<wxString> textSamples;
     size_t currentTextIndex;
@@ -48,6 +53,10 @@ private:
     void OnKeyDown(wxKeyEvent& event);
     void OnKeyUp(wxKeyEvent& event);
     void OnEnterPressed(wxCommandEvent& event);
+#if DEBUG
+    void OnForceLoginClicked(wxCommandEvent& event);
+#endif
+    
     void UpdateText();
 
     DECLARE_EVENT_TABLE()

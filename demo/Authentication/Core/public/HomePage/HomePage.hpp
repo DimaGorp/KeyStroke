@@ -42,9 +42,11 @@ class HomePage : public wxFrame {
 		void OnSignUpClick(wxCommandEvent& event);
 	private:
 		std::string generateRandomName(int length);
-		std::string EscapeCSVField(const std::string& field) const;
-		void GenerateCSVWithRandomNames(const std::string& directoryPath, const std::string& outputCSV);
-		void TrainGMMsForParticipants(const std::string& dataDir, const std::string& userCSV) ;
+    	std::string EscapeCSVField(const std::string& field) const;
+    	void GenerateCSVWithRandomNames(const std::string& directoryPath, const std::string& outputCSV);
+    	void PrepaDataset(const std::string& inputDir, const std::string& outputCSV);
+    	void TrainGMMsForParticipants(const std::string& dataCSV, const std::string& userCSV);
+    	void EvaluateGMMsForParticipants(const std::string& dataCSV, const std::string& userCSV);
 	
 		wxDECLARE_EVENT_TABLE();
 	};
