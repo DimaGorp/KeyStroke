@@ -17,17 +17,48 @@
 #include <wx/image.h>
 #include <wx/icon.h>
 #include <wx/sizer.h>
+#include <wx/scrolwin.h>
+#include <vector>
+#include "Core/GMM/GMM.hpp"
+#include "mathplot.h" // wxMathPlot header
+#include <wx/font.h>
+#include <wx/colour.h>
+#include <wx/settings.h>
+#include <wx/sizer.h>
+#include <wx/statbox.h>
+#include <wx/scrolwin.h>
+#include <wx/frame.h>
+
 class WelcomePage : public wxFrame
 {
-	private:
+private:
+    bool LoadEvaluationMetrics(const std::string& filename, const std::string& username);
+    void CreateROCCurve();
 
-	protected:
-		wxStaticText* HelpingText;
+    std::string username;
+    std::vector<Vec2> keystrokes;
+    double loginLikelihood;
+    double Far, frr, eer, successRate; // Evaluation metrics
+    bool metricsLoaded; // Flag to indicate if metrics were found
+    std::vector<std::pair<double, double>> rocPoints; // ROC curve data (FPR, TPR)
 
-	public:
+protected:
+    wxScrolledWindow* m_scrolledWindow1;
+    wxStaticText* HelpingText;
+    wxStaticText* FARText;
+    wxStaticText* FARValue;
+    wxStaticText* FRR;
+    wxStaticText* FRRValue;
+    wxStaticText* EER;
+    wxStaticText* EERValue;
+    wxStaticText* SR;
+    wxStaticText* SRValue;
+    mpWindow* rocWindow; // ROC curve plot
 
-		WelcomePage( wxWindow* parent, wxWindowID id = wxID_ANY, const wxString& title = wxEmptyString, const wxPoint& pos = wxDefaultPosition, const wxSize& size = wxSize( 944,644 ), long style = wxDEFAULT_FRAME_STYLE|wxTAB_TRAVERSAL );
-
-		~WelcomePage();
-
+public:
+    WelcomePage(wxWindow* parent, wxWindowID id, const wxString& title, 
+                const std::string& username, const std::vector<Vec2>& keystrokes, 
+                double likelihood, const wxPoint& pos = wxDefaultPosition, 
+                const wxSize& size = wxSize(1200, 800), long style = wxDEFAULT_FRAME_STYLE);
+    ~WelcomePage();
 };

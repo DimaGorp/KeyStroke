@@ -18,5 +18,21 @@ bool MyApp::OnInit()
         wxDEFAULT_FRAME_STYLE // style
        );
     frame->Show(true);
+    /*
+    std::string username = "Dima";
+std::vector<Vec2> keystrokes = { {120.0, 80.0}, {130.0, -50.0} }; // Example keystroke data
+double likelihood = 0.85; // Example likelihood value
+
+WelcomePage* frame = new WelcomePage(nullptr,
+    wxID_ANY,
+    "Welcome!",
+    username,
+    keystrokes,
+    likelihood,
+    wxDefaultPosition,
+    wxDefaultSize,
+    wxDEFAULT_FRAME_STYLE
+);
+frame->Show(true);*/
     return true;
 }
